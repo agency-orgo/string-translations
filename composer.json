@@ -1,0 +1,42 @@
+{
+    "name": "agency-orgo/string-translations",
+    "description": "A Statamic addon for managing string translations",
+    "autoload": {
+        "psr-4": {
+            "AgencyOrgo\\StringTranslations\\": "src"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "AgencyOrgo\\StringTranslations\\Tests\\": "tests"
+        }
+    },
+    "require": {
+        "statamic/cms": "^5.0"
+    },
+    "require-dev": {
+        "orchestra/testbench": "^9.0",
+        "phpunit/phpunit": "^12.3"
+    },
+    "scripts": {
+        "test": "phpunit"
+    },
+    "config": {
+        "allow-plugins": {
+            "pixelfear/composer-dist-plugin": true
+        }
+    },
+    "extra": {
+        "statamic": {
+            "name": "String Translations",
+            "description": "Manage string translations with database storage and fallback support"
+        },
+        "laravel": {
+            "providers": [
+                "AgencyOrgo\\StringTranslations\\ServiceProvider"
+            ]
+        }
+    },
+    "minimum-stability": "dev",
+    "prefer-stable": true
+}
