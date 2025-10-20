@@ -18,6 +18,7 @@
         "orchestra/testbench": "^9.0",
         "phpunit/phpunit": "^12.3"
     },
+    "license": "MIT",
     "scripts": {
         "test": "phpunit"
     },
