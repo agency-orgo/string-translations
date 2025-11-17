@@ -10,7 +10,7 @@ class ServiceProvider extends AddonServiceProvider
 {
     public function bootAddon()
     {
-        $this->loadMigrationsFrom(__DIR__ . '/migrations');
+        $this->loadMigrationsFrom(__DIR__ . '/../migrations');
         if ($this->app->runningInConsole()) {
             $this->loadRoutesFrom(__DIR__ . '/../routes/console.php');
             $this->publishes([
