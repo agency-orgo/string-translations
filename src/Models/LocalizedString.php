@@ -18,6 +18,7 @@ class LocalizedString extends Model
 
     public function getConnectionName()
     {
-        return config('string-translations.database.connection', 'default');
+        $connection = config('string-translations.database.connection', 'default');
+        return $connection === 'default' ? null : $connection;
     }
 }
