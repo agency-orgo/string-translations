@@ -5,6 +5,8 @@ namespace AgencyOrgo\StringTranslations\Controllers;
 use AgencyOrgo\StringTranslations\Models\LocalizedString;
 use AgencyOrgo\StringTranslations\Services\TranslationService;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Schema;
+use Statamic\Facades\Site;
 
 class TranslationController
 {
@@ -14,23 +16,36 @@ class TranslationController
     }
 
     /**
-     * @throws \JsonException
+     * Return props for the Inertia page component.
      */
-    public function index(Request $request)
+    public function index(Request $request): array
     {
-        // Use site handle instead of locale for string translations
-        $site = $request->get("lang") ?? 'en';
+        $tableName = config('string-translations.database.table', 'localized_strings');
 
-        // Define site fallback hierarchy
+        if (!Schema::hasTable($tableName)) {
+            return [
+                'translations' => [],
+                'activeLang' => $request->get('lang', 'en'),
+                'sites' => $this->getSites(),
+                'saveUrl' => cp_route('utilities.string-translations'),
+                'missingTable' => true,
+            ];
+        }
+
+        $site = $request->get('lang', 'en');
         $fallbackSites = $this->getFallbackSites($site);
-
-        // Get translations with fallback logic
         $data = $this->getTranslationsWithFallback($site, $fallbackSites);
 
-        return view(
-            "string-translations::main",
-            ["data" => $data, "active_lang" => $site]
-        );
+        return [
+            'translations' => $data->map(fn ($entry) => [
+                'key' => $entry->key,
+                'value' => $entry->value,
+            ])->values()->all(),
+            'activeLang' => $site,
+            'sites' => $this->getSites(),
+            'saveUrl' => cp_route('utilities.string-translations'),
+            'missingTable' => false,
+        ];
     }
 
     public function make(Request $request)
@@ -85,6 +100,17 @@ class TranslationController
         } catch (\Exception $e) {
             return back()->withError(__('An error occurred while saving. Please try again.'));
         }
+    }
+
+    /**
+     * Get sites list for tab switcher.
+     */
+    private function getSites(): array
+    {
+        return Site::all()->map(fn ($site, $handle) => [
+            'handle' => $handle,
+            'name' => $site->name(),
+        ])->values()->all();
     }
 
     /**
@@ -149,5 +175,4 @@ class TranslationController
 
         return $result->sortBy('key');
     }
-
 }

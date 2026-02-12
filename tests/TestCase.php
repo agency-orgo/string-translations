@@ -29,9 +29,6 @@ abstract class TestCase extends AddonTestCase
         $this->app['config']->set('string-translations.database.connection', 'testing');
         $this->app['config']->set('string-translations.database.table', 'localized_strings');
 
-        // Run migrations manually since RefreshDatabase doesn't work with addons
-        $this->runMigrations();
-
         // Persist a Statamic super user for CP routes and authorize properly
         User::all()->each->delete();
 
@@ -44,17 +41,4 @@ abstract class TestCase extends AddonTestCase
         $this->actingAs($user);
     }
 
-    protected function runMigrations(): void
-    {
-        $migrationPath = __DIR__ . '/../migrations';
-
-        if (is_dir($migrationPath)) {
-            $files = glob($migrationPath . '/*.php');
-
-            foreach ($files as $file) {
-                $migration = require $file;
-                $migration->up();
-            }
-        }
-    }
 }

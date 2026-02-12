@@ -5,12 +5,13 @@ namespace AgencyOrgo\StringTranslations\Tests\Controllers;
 use AgencyOrgo\StringTranslations\Models\LocalizedString;
 use AgencyOrgo\StringTranslations\Tests\TestCase;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Inertia\Testing\AssertableInertia;
 
 class TranslationControllerTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_index_returns_view_with_data()
+    public function test_index_returns_inertia_page_with_data()
     {
         LocalizedString::create([
             'key' => 'welcome.message',
@@ -21,9 +22,14 @@ class TranslationControllerTest extends TestCase
         $response = $this->get(cp_route('utilities.string-translations'));
 
         $response->assertStatus(200);
-        $response->assertViewIs('string-translations::main');
-        $response->assertViewHas('data');
-        $response->assertViewHas('active_lang');
+        $response->assertInertia(fn (AssertableInertia $page) => $page
+            ->component('string-translations::StringTranslations')
+            ->has('translations', 1)
+            ->has('activeLang')
+            ->has('sites')
+            ->has('saveUrl')
+            ->where('missingTable', false)
+        );
     }
 
     public function test_make_saves_translations()

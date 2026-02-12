@@ -1,0 +1,12 @@
+{
+    "private": true,
+    "scripts": {
+        "dev": "vite",
+        "build": "vite build"
+    },
+    "devDependencies": {
+        "@statamic/cms": "file:vendor/statamic/cms/packages/cms",
+        "laravel-vite-plugin": "^1.0",
+        "vite": "^6.0"
+    }
+}

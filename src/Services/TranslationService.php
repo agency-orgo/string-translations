@@ -5,6 +5,7 @@ namespace AgencyOrgo\StringTranslations\Services;
 use AgencyOrgo\StringTranslations\Models\LocalizedString;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\File;
+use Statamic\Facades\Site;
 
 class TranslationService
 {
@@ -64,8 +65,8 @@ class TranslationService
 
     public static function add($key, $value)
     {
-        foreach (config('statamic.sites.sites') as $site => $siteInfo) {
-            self::set($site, $key, $value);
+        foreach (Site::all() as $handle => $site) {
+            self::set($handle, $key, $value);
         }
     }
 
