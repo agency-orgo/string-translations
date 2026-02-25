@@ -34,42 +34,63 @@
 
         <div class="mt-4">
             <Listing
-                :items="translations"
+                :items="filteredTranslations"
                 :columns="columns"
                 sortColumn="key"
                 sortDirection="asc"
                 :allowBulkActions="false"
                 :allowCustomizingColumns="false"
+                v-slot="{ items, loading }"
             >
-                <template #cell-key="{ row }">
-                    <span class="font-mono text-xs" :class="{ 'line-through opacity-50': keysToDelete.has(row.key) }">
-                        {{ row.key }}
-                    </span>
-                </template>
-                <template #cell-value="{ row }">
-                    <Input
-                        :modelValue="editedValues[row.key] ?? row.value"
-                        :disabled="keysToDelete.has(row.key)"
-                        @update:modelValue="val => editedValues[row.key] = val"
+                <div class="flex items-center justify-between gap-3 min-h-16">
+                    <ListingSearch />
+                    <Select
+                        v-model="statusFilter"
+                        :options="statusFilterOptions"
+                        class="w-44"
                     />
-                </template>
-                <template #cell-actions="{ row }">
-                    <Button
-                        v-if="keysToDelete.has(row.key)"
-                        size="sm"
-                        @click="toggleDelete(row.key)"
-                    >
-                        Undo
-                    </Button>
-                    <Button
-                        v-else
-                        variant="danger"
-                        size="sm"
-                        @click="toggleDelete(row.key)"
-                    >
-                        Delete
-                    </Button>
-                </template>
+                </div>
+
+                <div
+                    v-if="!items.length"
+                    class="rounded-lg border border-dashed border-gray-300 dark:border-gray-700 p-6 text-center text-gray-500"
+                >
+                    No results
+                </div>
+
+                <Panel v-else>
+                    <ListingTable>
+                        <template #cell-key="{ row }">
+                            <span class="font-mono text-xs" :class="{ 'line-through opacity-50': keysToDelete.has(row.key) }">
+                                {{ row.key }}
+                            </span>
+                        </template>
+                        <template #cell-value="{ row }">
+                            <Input
+                                :modelValue="editedValues[row.key] ?? row.value"
+                                :disabled="keysToDelete.has(row.key)"
+                                @update:modelValue="val => editedValues[row.key] = val"
+                            />
+                        </template>
+                        <template #cell-actions="{ row }">
+                            <Button
+                                v-if="keysToDelete.has(row.key)"
+                                size="sm"
+                                @click="toggleDelete(row.key)"
+                            >
+                                Undo
+                            </Button>
+                            <Button
+                                v-else
+                                variant="danger"
+                                size="sm"
+                                @click="toggleDelete(row.key)"
+                            >
+                                Delete
+                            </Button>
+                        </template>
+                    </ListingTable>
+                </Panel>
             </Listing>
         </div>
 
@@ -92,10 +113,14 @@ import {
     Button,
     Input,
     Alert,
+    Select,
+    Panel,
     Tabs,
     TabList,
     TabTrigger,
     Listing,
+    ListingSearch,
+    ListingTable,
     ConfirmationModal,
 } from '@statamic/cms/ui';
 
@@ -119,6 +144,23 @@ const editedValues = reactive({});
 const keysToDelete = ref(new Set());
 const isSaving = ref(false);
 const showDeleteConfirmation = ref(false);
+const statusFilter = ref('all');
+
+const statusFilterOptions = [
+    { label: 'All', value: 'all' },
+    { label: 'Untranslated', value: 'untranslated' },
+    { label: 'Translated', value: 'translated' },
+];
+
+const filteredTranslations = computed(() => {
+    if (statusFilter.value === 'untranslated') {
+        return props.translations.filter(t => t.untranslated);
+    }
+    if (statusFilter.value === 'translated') {
+        return props.translations.filter(t => !t.untranslated);
+    }
+    return props.translations;
+});
 
 const saveButtonText = computed(() => {
     if (keysToDelete.value.size > 0) {

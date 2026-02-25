@@ -40,6 +40,7 @@ class TranslationController
             'translations' => $data->map(fn ($entry) => [
                 'key' => $entry->key,
                 'value' => $entry->value,
+                'untranslated' => str_starts_with($entry->value, 'untranslated_'),
             ])->values()->all(),
             'activeLang' => $site,
             'sites' => $this->getSites(),
