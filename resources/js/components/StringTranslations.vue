@@ -61,9 +61,12 @@
                 <Panel v-else>
                     <ListingTable>
                         <template #cell-key="{ row }">
-                            <span class="font-mono text-xs" :class="{ 'line-through opacity-50': keysToDelete.has(row.key) }">
-                                {{ row.key }}
-                            </span>
+                            <div class="flex items-center gap-2">
+                                <span class="font-mono text-xs" :class="{ 'line-through opacity-50': keysToDelete.has(row.key) }">
+                                    {{ row.key }}
+                                </span>
+                                <Badge v-if="row.untranslated" color="amber" size="sm" text="Untranslated" />
+                            </div>
                         </template>
                         <template #cell-value="{ row }">
                             <Input
@@ -113,6 +116,7 @@ import {
     Button,
     Input,
     Alert,
+    Badge,
     Select,
     Panel,
     Tabs,
