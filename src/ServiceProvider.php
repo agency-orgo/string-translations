@@ -4,7 +4,12 @@ namespace AgencyOrgo\StringTranslations;
 
 use AgencyOrgo\StringTranslations\Controllers\ApiController;
 use AgencyOrgo\StringTranslations\Controllers\TranslationController;
+use AgencyOrgo\StringTranslations\GraphQL\Mutations\CreateStringTranslationsMutation;
+use AgencyOrgo\StringTranslations\GraphQL\Queries\StringTranslationsQuery;
+use AgencyOrgo\StringTranslations\GraphQL\Types\CreateStringTranslationsResultType;
+use AgencyOrgo\StringTranslations\GraphQL\Types\StringTranslationsType;
 use Illuminate\Support\Facades\Route;
+use Statamic\Facades\GraphQL;
 use Statamic\Facades\Utility;
 use Statamic\Providers\AddonServiceProvider;
 
@@ -37,6 +42,16 @@ class ServiceProvider extends AddonServiceProvider
                 Route::get('strings', [ApiController::class, 'index']);
                 Route::post('strings', [ApiController::class, 'store']);
             });
+        }
+
+        if (config('statamic.graphql.enabled')) {
+            GraphQL::addType(StringTranslationsType::class);
+            GraphQL::addType(CreateStringTranslationsResultType::class);
+            GraphQL::addQuery(StringTranslationsQuery::class);
+
+            $mutations = config('statamic.graphql.mutations', []);
+            $mutations[] = CreateStringTranslationsMutation::class;
+            config(['statamic.graphql.mutations' => $mutations]);
         }
 
         Utility::extend(function () {
