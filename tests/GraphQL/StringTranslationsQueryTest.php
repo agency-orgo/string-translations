@@ -21,12 +21,12 @@ class StringTranslationsQueryTest extends TestCase
         LocalizedString::create(['key' => 'welcome.message', 'lang' => 'en', 'value' => 'Welcome!']);
 
         $response = $this->postJson('/graphql', [
-            'query' => '{ stringTranslations(lang: "en") { lang strings } }',
+            'query' => '{ string_translations(lang: "en") { lang strings } }',
         ]);
 
         $response->assertOk();
-        $response->assertJsonPath('data.stringTranslations.lang', 'en');
-        $response->assertJsonPath('data.stringTranslations.strings', [
+        $response->assertJsonPath('data.string_translations.lang', 'en');
+        $response->assertJsonPath('data.string_translations.strings', [
             'nav.home' => 'Home',
             'welcome.message' => 'Welcome!',
         ]);
@@ -37,18 +37,18 @@ class StringTranslationsQueryTest extends TestCase
         LocalizedString::create(['key' => 'nav.home', 'lang' => 'en', 'value' => 'Home']);
 
         $response = $this->postJson('/graphql', [
-            'query' => '{ stringTranslations(lang: "fr") { lang strings } }',
+            'query' => '{ string_translations(lang: "fr") { lang strings } }',
         ]);
 
         $response->assertOk();
-        $response->assertJsonPath('data.stringTranslations.lang', 'fr');
-        $response->assertJsonPath('data.stringTranslations.strings', []);
+        $response->assertJsonPath('data.string_translations.lang', 'fr');
+        $response->assertJsonPath('data.string_translations.strings', []);
     }
 
     public function test_lang_argument_is_required()
     {
         $response = $this->postJson('/graphql', [
-            'query' => '{ stringTranslations { lang strings } }',
+            'query' => '{ string_translations { lang strings } }',
         ]);
 
         $response->assertOk();
@@ -63,12 +63,12 @@ class StringTranslationsQueryTest extends TestCase
         LocalizedString::create(['key' => 'mango', 'lang' => 'en', 'value' => 'Mango']);
 
         $response = $this->postJson('/graphql', [
-            'query' => '{ stringTranslations(lang: "en") { strings } }',
+            'query' => '{ string_translations(lang: "en") { strings } }',
         ]);
 
         $response->assertOk();
 
-        $keys = array_keys($response->json('data.stringTranslations.strings'));
+        $keys = array_keys($response->json('data.string_translations.strings'));
         $this->assertEquals(['apple', 'mango', 'zebra'], $keys);
     }
 
@@ -78,12 +78,12 @@ class StringTranslationsQueryTest extends TestCase
         LocalizedString::create(['key' => 'nav.home', 'lang' => 'de', 'value' => 'Startseite']);
 
         $response = $this->postJson('/graphql', [
-            'query' => '{ stringTranslations(lang: "de") { lang strings } }',
+            'query' => '{ string_translations(lang: "de") { lang strings } }',
         ]);
 
         $response->assertOk();
-        $response->assertJsonPath('data.stringTranslations.lang', 'de');
-        $response->assertJsonPath('data.stringTranslations.strings', [
+        $response->assertJsonPath('data.string_translations.lang', 'de');
+        $response->assertJsonPath('data.string_translations.strings', [
             'nav.home' => 'Startseite',
         ]);
     }

@@ -69,7 +69,7 @@ Automatically available when Statamic's GraphQL is enabled (`STATAMIC_GRAPHQL_EN
 
 ```graphql
 {
-  stringTranslations(lang: "en") {
+  string_translations(lang: "en") {
     lang
     strings
   }
@@ -81,7 +81,7 @@ Response:
 ```json
 {
   "data": {
-    "stringTranslations": {
+    "string_translations": {
       "lang": "en",
       "strings": {
         "nav.home": "Home",

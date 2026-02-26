@@ -11,7 +11,7 @@ use Statamic\GraphQL\Queries\Query;
 class StringTranslationsQuery extends Query
 {
     protected $attributes = [
-        'name' => 'stringTranslations',
+        'name' => 'string_translations',
     ];
 
     public function type(): Type

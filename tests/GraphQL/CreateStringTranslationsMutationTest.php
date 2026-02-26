@@ -88,13 +88,13 @@ class CreateStringTranslationsMutationTest extends TestCase
         $site = Site::all()->keys()->first();
 
         $response = $this->postJson('/graphql', [
-            'query' => '{ stringTranslations(lang: "'.$site.'") { lang strings } }',
+            'query' => '{ string_translations(lang: "'.$site.'") { lang strings } }',
         ]);
 
         $response->assertOk();
-        $response->assertJsonPath('data.stringTranslations.lang', $site);
+        $response->assertJsonPath('data.string_translations.lang', $site);
 
-        $strings = $response->json('data.stringTranslations.strings');
+        $strings = $response->json('data.string_translations.strings');
         $this->assertArrayHasKey('nav.about', $strings);
         $this->assertEquals('untranslated_nav.about', $strings['nav.about']);
     }
