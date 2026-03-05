@@ -11,6 +11,7 @@ use AgencyOrgo\StringTranslations\GraphQL\Types\StringTranslationsType;
 use Illuminate\Support\Facades\Route;
 use Statamic\Facades\GraphQL;
 use Statamic\Facades\Utility;
+use Statamic\Http\Middleware\CP\RequireElevatedSession;
 use Statamic\Providers\AddonServiceProvider;
 
 class ServiceProvider extends AddonServiceProvider
@@ -65,6 +66,9 @@ class ServiceProvider extends AddonServiceProvider
                 )
                 ->routes(function ($router) {
                     $router->post('/', [TranslationController::class, 'make'])->name('make');
+                    $router->get('/settings', [TranslationController::class, 'getSettings'])->name('settings.index');
+                    $router->post('/settings', [TranslationController::class, 'saveSettings'])->name('settings.save')->middleware(RequireElevatedSession::class);
+                    $router->post('/translate-all', [TranslationController::class, 'translateAll'])->name('translate-all');
                 });
 
             Utility::register($utility);

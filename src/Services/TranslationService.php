@@ -154,6 +154,7 @@ class TranslationService
 
     /**
      * Perform bulk upsert of translations for optimal performance.
+     * Only clears auto_translated for keys whose value actually changed.
      */
     private static function bulkUpsertTranslations(string $language, array $translations): void
     {
@@ -163,9 +164,55 @@ class TranslationService
             return;
         }
 
-        // Prepare bulk upsert data
-        $upsertData = [];
+        // Fetch current values to detect which keys actually changed
+        $existing = LocalizedString::where('lang', $language)
+            ->whereIn('key', array_keys($translations))
+            ->pluck('value', 'key')
+            ->all();
+
+        $changed = [];
+        $unchanged = [];
+
+        foreach ($translations as $key => $value) {
+            if (! isset($existing[$key]) || $existing[$key] !== $value) {
+                $changed[$key] = $value;
+            } else {
+                $unchanged[$key] = $value;
+            }
+        }
+
+        // Changed keys: force auto_translated = false
+        if (! empty($changed)) {
+            self::bulkUpsert($language, $changed, autoTranslated: false);
+        }
+
+        // Unchanged keys: upsert value only, preserve auto_translated
+        if (! empty($unchanged)) {
+            self::bulkUpsertPreserveFlag($language, $unchanged);
+        }
+    }
+
+    /**
+     * Bulk upsert translations marked as auto-translated (from DeepL).
+     */
+    public static function bulkUpsertAutoTranslations(string $language, array $translations): void
+    {
+        self::bulkUpsert($language, $translations, autoTranslated: true);
+    }
+
+    /**
+     * Upsert translations without touching the auto_translated flag.
+     */
+    private static function bulkUpsertPreserveFlag(string $language, array $translations): void
+    {
+        $translations = array_filter($translations, fn ($key) => self::isValidKey($key), ARRAY_FILTER_USE_KEY);
+
+        if (empty($translations)) {
+            return;
+        }
+
         $now = now();
+        $upsertData = [];
 
         foreach ($translations as $key => $value) {
             $upsertData[] = [
@@ -178,18 +225,58 @@ class TranslationService
         }
 
         try {
-            // Use Laravel's bulk upsert for optimal performance
             LocalizedString::upsert(
                 $upsertData,
-                ['key', 'lang'], // Unique columns
-                ['value', 'updated_at'] // Columns to update if exists
+                ['key', 'lang'],
+                ['value', 'updated_at']
             );
         } catch (\Exception $e) {
-            // Fallback to individual operations
+            report($e);
+
             foreach ($translations as $key => $value) {
                 LocalizedString::updateOrCreate(
                     ['key' => $key, 'lang' => $language],
                     ['value' => $value, 'updated_at' => $now]
+                );
+            }
+        }
+    }
+
+    private static function bulkUpsert(string $language, array $translations, bool $autoTranslated): void
+    {
+        $translations = array_filter($translations, fn ($key) => self::isValidKey($key), ARRAY_FILTER_USE_KEY);
+
+        if (empty($translations)) {
+            return;
+        }
+
+        $now = now();
+        $upsertData = [];
+
+        foreach ($translations as $key => $value) {
+            $upsertData[] = [
+                'key' => $key,
+                'lang' => $language,
+                'value' => $value,
+                'auto_translated' => $autoTranslated,
+                'created_at' => $now,
+                'updated_at' => $now,
+            ];
+        }
+
+        try {
+            LocalizedString::upsert(
+                $upsertData,
+                ['key', 'lang'],
+                ['value', 'auto_translated', 'updated_at']
+            );
+        } catch (\Exception $e) {
+            report($e);
+
+            foreach ($translations as $key => $value) {
+                LocalizedString::updateOrCreate(
+                    ['key' => $key, 'lang' => $language],
+                    ['value' => $value, 'auto_translated' => $autoTranslated, 'updated_at' => $now]
                 );
             }
         }

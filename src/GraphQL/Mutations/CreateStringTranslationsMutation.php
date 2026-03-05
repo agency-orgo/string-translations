@@ -41,7 +41,7 @@ class CreateStringTranslationsMutation extends Mutation
                 $rows[] = [
                     'key' => $key,
                     'lang' => $handle,
-                    'value' => 'untranslated_'.$key,
+                    'value' => config('string-translations.untranslated_prefix') . $key,
                     'created_at' => $now,
                     'updated_at' => $now,
                 ];

@@ -8,6 +8,15 @@
             <Badge v-if="version" pill :text="`${version}`" />
           </template>
           <template #actions>
+                <Dropdown>
+                    <template #trigger>
+                        <Button icon="setting-cog-gear" />
+                    </template>
+                    <DropdownMenu>
+                        <DropdownItem text="Translate All" @click="openTranslateModal" />
+                        <DropdownItem text="Configuration" @click="openConfigModal" />
+                    </DropdownMenu>
+                </Dropdown>
                 <Button
                     :variant="keysToDelete.size > 0 ? 'danger' : 'primary'"
                     :disabled="isSaving"
@@ -70,6 +79,7 @@
                                     {{ row.key }}
                                 </span>
                                 <Badge v-if="row.untranslated" color="amber" size="sm" text="Untranslated" />
+                                <Badge v-else-if="row.auto_translated" color="blue" size="sm" text="Auto-translated" />
                             </div>
                         </template>
                         <template #cell-value="{ row }">
@@ -109,12 +119,26 @@
             danger
             @confirm="confirmSave"
         />
+
+        <TranslateAllModal
+            v-model:open="showTranslateModal"
+            :sites="sites"
+            :translateUrl="translateUrl"
+        />
+
+        <ConfigurationModal
+            v-model:open="showConfigModal"
+            :settingsUrl="settingsUrl"
+            :hasDeeplKey="hasDeeplKeyLocal"
+            @saved="onConfigSaved"
+        />
     </div>
 </template>
 
 <script setup>
 import { ref, reactive, computed, onMounted, onUnmounted } from 'vue';
 import { Head, router } from '@statamic/cms/inertia';
+import { requireElevatedSession } from '@statamic/cms';
 import {
     Header,
     Button,
@@ -130,13 +154,21 @@ import {
     ListingSearch,
     ListingTable,
     ConfirmationModal,
+    Dropdown,
+    DropdownMenu,
+    DropdownItem,
 } from '@statamic/cms/ui';
+import TranslateAllModal from './TranslateAllModal.vue';
+import ConfigurationModal from './ConfigurationModal.vue';
 
 const props = defineProps({
     translations: { type: Array, required: true },
     activeLang: { type: String, required: true },
     sites: { type: Array, required: true },
     saveUrl: { type: String, required: true },
+    settingsUrl: { type: String, default: null },
+    translateUrl: { type: String, default: null },
+    hasDeeplKey: { type: Boolean, default: false },
     missingTable: { type: Boolean, default: false },
     version: { type: String, default: null },
 });
@@ -154,11 +186,15 @@ const keysToDelete = ref(new Set());
 const isSaving = ref(false);
 const showDeleteConfirmation = ref(false);
 const statusFilter = ref('all');
+const showTranslateModal = ref(false);
+const showConfigModal = ref(false);
+const hasDeeplKeyLocal = ref(props.hasDeeplKey);
 
 const statusFilterOptions = [
     { label: 'All', value: 'all' },
     { label: 'Untranslated', value: 'untranslated' },
     { label: 'Translated', value: 'translated' },
+    { label: 'Auto-translated', value: 'auto_translated' },
 ];
 
 const filteredTranslations = computed(() => {
@@ -167,6 +203,9 @@ const filteredTranslations = computed(() => {
     }
     if (statusFilter.value === 'translated') {
         return props.translations.filter(t => !t.untranslated);
+    }
+    if (statusFilter.value === 'auto_translated') {
+        return props.translations.filter(t => t.auto_translated && !t.untranslated);
     }
     return props.translations;
 });
@@ -236,5 +275,23 @@ function confirmSave() {
             keysToDelete.value = new Set();
         },
     });
+}
+
+function openTranslateModal() {
+    if (!hasDeeplKeyLocal.value) {
+        Statamic.$toast.error('DeepL API key is not configured. Go to Configuration to set it up.');
+        return;
+    }
+    showTranslateModal.value = true;
+}
+
+function openConfigModal() {
+    requireElevatedSession()
+        .then(() => showConfigModal.value = true)
+        .catch(() => {});
+}
+
+function onConfigSaved(hasKey) {
+    hasDeeplKeyLocal.value = hasKey;
 }
 </script>
