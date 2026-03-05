@@ -31,8 +31,9 @@ class TranslationController
     public function index(Request $request): array
     {
         $tableName = config('string-translations.database.table', 'localized_strings');
+        $settingsTable = config('string-translations.database.settings_table', 'string_translation_settings');
 
-        if (!Schema::hasTable($tableName)) {
+        if (!Schema::hasTable($tableName) || !Schema::hasTable($settingsTable)) {
             return [
                 'translations' => [],
                 'activeLang' => $request->get('lang', 'en'),
