@@ -4,6 +4,7 @@ namespace AgencyOrgo\StringTranslations\Controllers;
 
 use AgencyOrgo\StringTranslations\Models\LocalizedString;
 use AgencyOrgo\StringTranslations\Services\TranslationService;
+use Composer\InstalledVersions;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Schema;
 use Statamic\Facades\Site;
@@ -29,6 +30,7 @@ class TranslationController
                 'sites' => $this->getSites(),
                 'saveUrl' => cp_route('utilities.string-translations'),
                 'missingTable' => true,
+                'version' => self::getVersion(),
             ];
         }
 
@@ -46,6 +48,7 @@ class TranslationController
             'sites' => $this->getSites(),
             'saveUrl' => cp_route('utilities.string-translations'),
             'missingTable' => false,
+            'version' => self::getVersion(),
         ];
     }
 
@@ -101,6 +104,11 @@ class TranslationController
         } catch (\Exception $e) {
             return back()->withError(__('An error occurred while saving. Please try again.'));
         }
+    }
+
+    private static function getVersion(): ?string
+    {
+        return InstalledVersions::getPrettyVersion('agency-orgo/string-translations');
     }
 
     /**

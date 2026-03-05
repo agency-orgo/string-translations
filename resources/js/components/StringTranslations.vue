@@ -3,7 +3,11 @@
         <Head :title="title" />
 
         <Header :title="title">
-            <template #actions>
+          <template #title>
+            {{ title }}
+            <Badge v-if="version" pill :text="`${version}`" />
+          </template>
+          <template #actions>
                 <Button
                     :variant="keysToDelete.size > 0 ? 'danger' : 'primary'"
                     :disabled="isSaving"
@@ -134,6 +138,7 @@ const props = defineProps({
     sites: { type: Array, required: true },
     saveUrl: { type: String, required: true },
     missingTable: { type: Boolean, default: false },
+    version: { type: String, default: null },
 });
 
 const title = 'String Translations';
