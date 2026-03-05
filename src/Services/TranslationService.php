@@ -93,11 +93,9 @@ class TranslationService
 
             // 1b. Defensive: ensure translations do not include keys slated for deletion
             if (!empty($keysToDelete) && !empty($translations)) {
-                $validDeletionKeys = self::validateKeys($keysToDelete);
-                if (!empty($validDeletionKeys)) {
-                    foreach ($validDeletionKeys as $deleteKey) {
-                        unset($translations[$deleteKey]);
-                    }
+                $trimmedKeysToDelete = array_map('trim', $keysToDelete);
+                foreach ($trimmedKeysToDelete as $deleteKey) {
+                    unset($translations[$deleteKey]);
                 }
             }
 
@@ -110,19 +108,18 @@ class TranslationService
     }
 
     /**
-     * Delete specific keys from all locales.
+     * Delete specific keys from all locales. Uses permissive filtering
+     * so keys that don't pass strict validation can still be removed.
      */
     private static function deleteKeysFromAllLocales(array $keys): void
     {
-        // Validate and sanitize keys
-        $validKeys = self::validateKeys($keys);
+        $keys = array_filter(array_map('trim', $keys), fn (string $key) => $key !== '' && strlen($key) <= 255);
 
-        if (empty($validKeys)) {
+        if (empty($keys)) {
             return;
         }
 
-        // Perform deletion across all locales
-        LocalizedString::whereIn('key', $validKeys)->delete();
+        LocalizedString::whereIn('key', $keys)->delete();
     }
 
     /**
@@ -160,6 +157,8 @@ class TranslationService
      */
     private static function bulkUpsertTranslations(string $language, array $translations): void
     {
+        $translations = array_filter($translations, fn ($key) => self::isValidKey($key), ARRAY_FILTER_USE_KEY);
+
         if (empty($translations)) {
             return;
         }
@@ -196,20 +195,10 @@ class TranslationService
         }
     }
 
-    /**
-     * Validate and sanitize translation keys.
-     */
-    private static function validateKeys(array $keys): array
+    private static function isValidKey(string $key): bool
     {
-        return array_filter(
-            array_map('trim', $keys),
-            function ($key) {
-                // Allow alphanumeric, dots, underscores, spaces, and hyphens
-                return !empty($key)
-                    && is_string($key)
-                    && preg_match('/^[a-zA-Z0-9._$\\s-]+$/', $key)
-                    && strlen($key) <= 255;
-            }
-        );
+        $key = trim($key);
+
+        return $key !== '' && strlen($key) <= 255 && preg_match('/^[a-zA-Z0-9._ -]+$/', $key);
     }
 }
