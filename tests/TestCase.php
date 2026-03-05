@@ -5,10 +5,12 @@ namespace AgencyOrgo\StringTranslations\Tests;
 use AgencyOrgo\StringTranslations\ServiceProvider;
 use Statamic\Facades\User;
 use Statamic\Testing\AddonTestCase;
+use Statamic\Testing\Concerns\PreventsSavingStacheItemsToDisk;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 
 abstract class TestCase extends AddonTestCase
 {
+    use PreventsSavingStacheItemsToDisk;
     use RefreshDatabase;
 
     protected string $addonServiceProvider = ServiceProvider::class;
