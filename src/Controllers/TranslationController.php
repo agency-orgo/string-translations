@@ -34,7 +34,12 @@ class TranslationController
             ];
         }
 
+        $validSites = Site::all()->keys()->all();
         $site = $request->get('lang', 'en');
+        if (!in_array($site, $validSites, true)) {
+            $site = $validSites[0] ?? 'en';
+        }
+        $this->propagateKeysIfEmpty($site);
         $fallbackSites = $this->getFallbackSites($site);
         $data = $this->getTranslationsWithFallback($site, $fallbackSites);
 
@@ -120,6 +125,35 @@ class TranslationController
             'handle' => $handle,
             'name' => $site->name(),
         ])->values()->all();
+    }
+
+    /**
+     * If a site has no keys at all, propagate all known keys as untranslated.
+     */
+    private function propagateKeysIfEmpty(string $site): void
+    {
+        if (LocalizedString::where('lang', $site)->exists()) {
+            return;
+        }
+
+        $allKeys = LocalizedString::select('key')
+            ->distinct()
+            ->pluck('key');
+
+        if ($allKeys->isEmpty()) {
+            return;
+        }
+
+        $now = now();
+        $rows = $allKeys->map(fn ($key) => [
+            'key' => $key,
+            'lang' => $site,
+            'value' => 'untranslated_' . $key,
+            'created_at' => $now,
+            'updated_at' => $now,
+        ])->all();
+
+        LocalizedString::insertOrIgnore($rows);
     }
 
     /**
