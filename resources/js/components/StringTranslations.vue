@@ -233,6 +233,7 @@ function confirmSave() {
     }, {
         onFinish: () => {
             isSaving.value = false;
+            keysToDelete.value = new Set();
         },
     });
 }
