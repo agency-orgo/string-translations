@@ -14,6 +14,7 @@
                     </template>
                     <DropdownMenu>
                         <DropdownItem text="Translate All" @click="openTranslateModal" />
+                        <DropdownItem text="Copy Values" @click="showCopyModal = true" />
                         <DropdownItem text="Configuration" @click="openConfigModal" />
                     </DropdownMenu>
                 </Dropdown>
@@ -126,6 +127,12 @@
             :translateUrl="translateUrl"
         />
 
+        <CopyValuesModal
+            v-model:open="showCopyModal"
+            :sites="sites"
+            :copyUrl="copyUrl"
+        />
+
         <ConfigurationModal
             v-model:open="showConfigModal"
             :settingsUrl="settingsUrl"
@@ -159,6 +166,7 @@ import {
     DropdownItem,
 } from '@statamic/cms/ui';
 import TranslateAllModal from './TranslateAllModal.vue';
+import CopyValuesModal from './CopyValuesModal.vue';
 import ConfigurationModal from './ConfigurationModal.vue';
 
 const props = defineProps({
@@ -168,6 +176,7 @@ const props = defineProps({
     saveUrl: { type: String, required: true },
     settingsUrl: { type: String, default: null },
     translateUrl: { type: String, default: null },
+    copyUrl: { type: String, default: null },
     hasDeeplKey: { type: Boolean, default: false },
     missingTable: { type: Boolean, default: false },
     version: { type: String, default: null },
@@ -187,6 +196,7 @@ const isSaving = ref(false);
 const showDeleteConfirmation = ref(false);
 const statusFilter = ref('all');
 const showTranslateModal = ref(false);
+const showCopyModal = ref(false);
 const showConfigModal = ref(false);
 const hasDeeplKeyLocal = ref(props.hasDeeplKey);
 

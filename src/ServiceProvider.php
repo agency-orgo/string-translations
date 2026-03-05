@@ -69,6 +69,7 @@ class ServiceProvider extends AddonServiceProvider
                     $router->get('/settings', [TranslationController::class, 'getSettings'])->name('settings.index');
                     $router->post('/settings', [TranslationController::class, 'saveSettings'])->name('settings.save')->middleware(RequireElevatedSession::class);
                     $router->post('/translate-all', [TranslationController::class, 'translateAll'])->name('translate-all');
+                    $router->post('/copy-values', [TranslationController::class, 'copyValues'])->name('copy-values');
                 });
 
             Utility::register($utility);

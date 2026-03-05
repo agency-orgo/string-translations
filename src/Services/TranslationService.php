@@ -203,7 +203,7 @@ class TranslationService
     /**
      * Upsert translations without touching the auto_translated flag.
      */
-    private static function bulkUpsertPreserveFlag(string $language, array $translations): void
+    public static function bulkUpsertPreserveFlag(string $language, array $translations): void
     {
         $translations = array_filter($translations, fn ($key) => self::isValidKey($key), ARRAY_FILTER_USE_KEY);
 

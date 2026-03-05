@@ -41,6 +41,7 @@ class TranslationController
                 'saveUrl' => cp_route('utilities.string-translations'),
                 'settingsUrl' => cp_route('utilities.string-translations.settings.save'),
                 'translateUrl' => cp_route('utilities.string-translations.translate-all'),
+                'copyUrl' => cp_route('utilities.string-translations.copy-values'),
                 'hasDeeplKey' => false,
                 'missingTable' => true,
                 'version' => self::getVersion(),
@@ -68,6 +69,7 @@ class TranslationController
             'saveUrl' => cp_route('utilities.string-translations'),
             'settingsUrl' => cp_route('utilities.string-translations.settings.save'),
             'translateUrl' => cp_route('utilities.string-translations.translate-all'),
+            'copyUrl' => cp_route('utilities.string-translations.copy-values'),
             'hasDeeplKey' => $this->settings->has(SettingsService::DEEPL_API_KEY),
             'missingTable' => false,
             'version' => self::getVersion(),
@@ -227,6 +229,57 @@ class TranslationController
             });
         } catch (LockTimeoutException) {
             return response()->json(['error' => 'A translation is already in progress. Please wait.'], 429);
+        }
+    }
+
+    public function copyValues(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'from_lang' => 'required|string|max:10',
+            'to_lang' => 'required|string|max:10',
+            'overwrite' => 'boolean',
+        ]);
+
+        $fromLang = $validated['from_lang'];
+        $toLang = $validated['to_lang'];
+        $overwrite = $validated['overwrite'] ?? false;
+        $prefix = config('string-translations.untranslated_prefix');
+
+        try {
+            return Cache::lock('string-translations:copy-values', 30)->block(0, function () use ($fromLang, $toLang, $overwrite, $prefix) {
+                // Get all source values, excluding untranslated ones
+                $sourceValues = LocalizedString::where('lang', $fromLang)
+                    ->where('value', 'not like', $prefix . '%')
+                    ->pluck('value', 'key')
+                    ->all();
+
+                if (empty($sourceValues)) {
+                    return response()->json(['copied' => 0, 'message' => 'No source values to copy.']);
+                }
+
+                if (! $overwrite) {
+                    // Only copy to keys that are untranslated in destination
+                    $untranslatedKeys = LocalizedString::where('lang', $toLang)
+                        ->where('value', 'like', $prefix . '%')
+                        ->pluck('key')
+                        ->all();
+
+                    $sourceValues = array_intersect_key($sourceValues, array_flip($untranslatedKeys));
+                }
+
+                if (empty($sourceValues)) {
+                    return response()->json(['copied' => 0, 'message' => 'No keys to copy.']);
+                }
+
+                TranslationService::bulkUpsertPreserveFlag($toLang, $sourceValues);
+
+                return response()->json([
+                    'copied' => count($sourceValues),
+                    'message' => count($sourceValues) . ' value(s) copied successfully.',
+                ]);
+            });
+        } catch (LockTimeoutException) {
+            return response()->json(['error' => 'A copy operation is already in progress. Please wait.'], 429);
         }
     }
 
