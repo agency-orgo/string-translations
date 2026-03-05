@@ -2,7 +2,7 @@
     <Modal v-model:open="isOpen" title="Translate All">
         <div class="space-y-6 pb-3">
             <p class="text-sm font-normal text-gray-600/90 dark:text-gray-400">
-                Translate all untranslated keys using DeepL.
+                Translate keys using DeepL.
             </p>
             <Field label="From Language">
                 <Select
@@ -16,6 +16,15 @@
                     :options="toLanguageOptions"
                 />
             </Field>
+            <div>
+                <div class="flex items-center gap-2">
+                    <Switch v-model="overwrite" />
+                    <label class="text-sm font-medium">Overwrite existing translations</label>
+                </div>
+                <p class="text-xs text-gray-500 dark:text-gray-400 mt-1.5 ml-9">
+                    When enabled, all keys will be re-translated via DeepL, replacing existing translations. When disabled, only untranslated keys will be translated.
+                </p>
+            </div>
         </div>
         <template #footer>
             <div class="flex items-center justify-end space-x-3 pt-3 pb-1">
@@ -36,7 +45,7 @@
 <script setup>
 import { ref, computed, watch, getCurrentInstance } from 'vue';
 import { router } from '@statamic/cms/inertia';
-import { Button, Select, Modal, ModalClose, Field } from '@statamic/cms/ui';
+import { Button, Select, Switch, Modal, ModalClose, Field } from '@statamic/cms/ui';
 
 const props = defineProps({
     sites: { type: Array, required: true },
@@ -49,6 +58,7 @@ const isOpen = defineModel('open', { type: Boolean, default: false });
 
 const fromLang = ref(props.sites[0]?.handle ?? '');
 const toLang = ref('');
+const overwrite = ref(false);
 const isTranslating = ref(false);
 
 const toSites = (exclude) => props.sites
@@ -68,6 +78,7 @@ async function translate() {
         const { data } = await $axios.post(props.translateUrl, {
             from_lang: fromLang.value,
             to_lang: toLang.value,
+            overwrite: overwrite.value,
         });
 
         Statamic.$toast.success(data.message);

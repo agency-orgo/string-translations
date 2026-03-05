@@ -158,6 +158,7 @@ class TranslationController
         $validated = $request->validate([
             'from_lang' => 'required|string|max:10',
             'to_lang' => 'required|string|max:10',
+            'overwrite' => 'boolean',
         ]);
 
         $apiKey = $this->settings->get(SettingsService::DEEPL_API_KEY);
@@ -168,6 +169,7 @@ class TranslationController
 
         $fromLang = $validated['from_lang'];
         $toLang = $validated['to_lang'];
+        $overwrite = $validated['overwrite'] ?? false;
 
         $fromLocale = $this->getLocaleForSite($fromLang);
         $toLocale = $this->getLocaleForSite($toLang);
@@ -177,24 +179,32 @@ class TranslationController
         }
 
         try {
-            return Cache::lock('string-translations:translate-all', 30)->block(0, function () use ($apiKey, $fromLang, $toLang, $fromLocale, $toLocale) {
-                $untranslatedKeys = LocalizedString::where('lang', $toLang)
-                    ->where('value', 'like', config('string-translations.untranslated_prefix') . '%')
-                    ->pluck('key')
-                    ->all();
+            return Cache::lock('string-translations:translate-all', 30)->block(0, function () use ($apiKey, $fromLang, $toLang, $fromLocale, $toLocale, $overwrite) {
+                $prefix = config('string-translations.untranslated_prefix');
 
-                if (empty($untranslatedKeys)) {
-                    return response()->json(['translated' => 0, 'message' => 'No untranslated keys found.']);
+                if ($overwrite) {
+                    $targetKeys = LocalizedString::where('lang', $toLang)
+                        ->pluck('key')
+                        ->all();
+                } else {
+                    $targetKeys = LocalizedString::where('lang', $toLang)
+                        ->where('value', 'like', $prefix . '%')
+                        ->pluck('key')
+                        ->all();
+                }
+
+                if (empty($targetKeys)) {
+                    return response()->json(['translated' => 0, 'message' => 'No keys found to translate.']);
                 }
 
                 $sourceValues = LocalizedString::where('lang', $fromLang)
-                    ->whereIn('key', $untranslatedKeys)
+                    ->whereIn('key', $targetKeys)
                     ->pluck('value', 'key')
                     ->all();
 
                 $toTranslate = [];
-                foreach ($untranslatedKeys as $key) {
-                    if (isset($sourceValues[$key]) && ! str_starts_with($sourceValues[$key], config('string-translations.untranslated_prefix'))) {
+                foreach ($targetKeys as $key) {
+                    if (isset($sourceValues[$key]) && ! str_starts_with($sourceValues[$key], $prefix)) {
                         $toTranslate[$key] = $sourceValues[$key];
                     }
                 }
