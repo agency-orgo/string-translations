@@ -267,8 +267,39 @@ function onKeydown(e) {
     }
 }
 
-onMounted(() => document.addEventListener('keydown', onKeydown));
-onUnmounted(() => document.removeEventListener('keydown', onKeydown));
+const isActive = ref(false);
+
+onMounted(() => {
+    document.addEventListener('keydown', onKeydown);
+    isActive.value = true;
+
+    Statamic.$commandPalette.add({
+        text: ['String Translations', 'Translate All'],
+        icon: 'translate',
+        category: Statamic.$commandPalette.category.Actions,
+        when: () => isActive.value,
+        action: () => openTranslateModal(),
+    });
+    Statamic.$commandPalette.add({
+        text: ['String Translations', 'Copy Values'],
+        icon: 'content-writing',
+        category: Statamic.$commandPalette.category.Actions,
+        when: () => isActive.value,
+        action: () => { showCopyModal.value = true; },
+    });
+    Statamic.$commandPalette.add({
+        text: ['String Translations', 'Configuration'],
+        icon: 'setting-cog-gear',
+        category: Statamic.$commandPalette.category.Actions,
+        when: () => isActive.value,
+        action: () => openConfigModal(),
+    });
+});
+
+onUnmounted(() => {
+    document.removeEventListener('keydown', onKeydown);
+    isActive.value = false;
+});
 
 function toggleDelete(key) {
     const next = new Set(keysToDelete.value);
