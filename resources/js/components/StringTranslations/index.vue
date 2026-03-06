@@ -85,9 +85,11 @@
                         </template>
                         <template #cell-value="{ row }">
                             <Input
+                                :ref="el => setValueRef(row.key, el)"
                                 :modelValue="editedValues[row.key] ?? row.value"
                                 :disabled="keysToDelete.has(row.key)"
                                 @update:modelValue="val => editedValues[row.key] = val"
+                                @keydown.enter.prevent="focusAdjacentValue(row.key, $event.shiftKey ? -1 : 1)"
                             />
                         </template>
                         <template #cell-actions="{ row }">
@@ -189,6 +191,26 @@ const columns = [
     { field: 'value', label: 'Value' },
     { field: 'actions', label: '' },
 ];
+
+const valueRefs = {};
+function setValueRef(key, el) {
+    if (el) {
+        valueRefs[key] = el;
+    } else {
+        delete valueRefs[key];
+    }
+}
+function focusAdjacentValue(currentKey, direction) {
+    const keys = filteredTranslations.value.map(t => t.key);
+    const idx = keys.indexOf(currentKey);
+    const targetKey = keys[idx + direction];
+    if (targetKey == null) return;
+    const ref = valueRefs[targetKey];
+    if (!ref) return;
+    const el = ref.$el ?? ref;
+    const input = el.tagName === 'INPUT' ? el : el.querySelector('input');
+    input?.focus();
+}
 
 const editedValues = reactive({});
 const keysToDelete = ref(new Set());
