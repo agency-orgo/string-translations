@@ -234,7 +234,7 @@ const activeTab = computed({
 });
 
 function onKeydown(e) {
-    if (e.key === 'Enter' || ((e.metaKey || e.ctrlKey) && e.key === 's')) {
+    if ((e.metaKey || e.ctrlKey) && e.key === 's') {
         e.preventDefault();
         save();
     }
