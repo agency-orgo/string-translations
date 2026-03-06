@@ -145,7 +145,7 @@
 </template>
 
 <script setup>
-import { ref, reactive, computed, onMounted, onUnmounted } from 'vue';
+import { ref, reactive, computed, watch, onMounted, onUnmounted } from 'vue';
 import { Head, router } from '@statamic/cms/inertia';
 import { requireElevatedSession } from '@statamic/cms';
 import {
@@ -250,9 +250,14 @@ const saveButtonText = computed(() => {
     return 'Save';
 });
 
+watch(() => props.activeLang, () => {
+    Object.keys(editedValues).forEach(k => delete editedValues[k]);
+    keysToDelete.value = new Set();
+});
+
 const activeTab = computed({
     get: () => props.activeLang,
-    set: (handle) => router.get(window.location.pathname, { lang: handle }, { preserveState: false }),
+    set: (handle) => router.get(window.location.pathname, { lang: handle }, { preserveState: true }),
 });
 
 function onKeydown(e) {
