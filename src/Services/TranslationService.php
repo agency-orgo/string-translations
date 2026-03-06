@@ -99,10 +99,7 @@ class TranslationService
                 }
             }
 
-            // 2. Clean up obsolete translations for current language
-            self::cleanupObsoleteTranslations($language, $translations, $keysToDelete);
-
-            // 3. Bulk upsert translations for current language
+            // 2. Bulk upsert translations for current language
             self::bulkUpsertTranslations($language, $translations);
         });
     }
@@ -120,36 +117,6 @@ class TranslationService
         }
 
         LocalizedString::whereIn('key', $keys)->delete();
-    }
-
-    /**
-     * Clean up translations that are no longer present in the submitted data.
-     */
-    private static function cleanupObsoleteTranslations(string $language, array $translations, array $excludedKeys = []): void
-    {
-        $submittedKeys = array_keys($translations);
-        $allKeysToKeep = array_merge($submittedKeys, $excludedKeys);
-
-        // Optimize for large datasets
-        if (count($allKeysToKeep) > 1000) {
-            // For large datasets, fetch existing keys first to avoid query length limits
-            $existingKeysToDelete = LocalizedString::where('lang', $language)
-                ->select('key')
-                ->get()
-                ->pluck('key')
-                ->diff($allKeysToKeep);
-
-            if ($existingKeysToDelete->isNotEmpty()) {
-                LocalizedString::where('lang', $language)
-                    ->whereIn('key', $existingKeysToDelete->toArray())
-                    ->delete();
-            }
-        } else {
-            // Standard approach for smaller datasets
-            LocalizedString::where('lang', $language)
-                ->whereNotIn('key', $allKeysToKeep)
-                ->delete();
-        }
     }
 
     /**
