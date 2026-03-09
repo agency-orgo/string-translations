@@ -32,3 +32,24 @@ Artisan::command("strings:import", function () {
     }
     LocalizedString::insertOrIgnore($rows);
 });
+
+Artisan::command("strings:export", function () {
+    $translations = LocalizedString::orderBy('key')->get()->groupBy('lang');
+
+    $langPath = base_path('lang');
+    if (!File::isDirectory($langPath)) {
+        File::makeDirectory($langPath, 0755, true);
+    }
+
+    foreach ($translations as $locale => $entries) {
+        $data = [];
+        foreach ($entries as $entry) {
+            $data[$entry->key] = $entry->value;
+        }
+        ksort($data);
+
+        File::put($langPath . "/{$locale}.json", json_encode($data, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE));
+    }
+
+    $this->info('Export complete.');
+});
