@@ -4,7 +4,7 @@ use AgencyOrgo\StringTranslations\Models\LocalizedString;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\File;
 
-Artisan::command("strings:import", function () {
+Artisan::command("strings:import {--force : Delete all existing translations before importing}", function () {
     $langPath = base_path('lang');
     $translations = [];
 
@@ -30,7 +30,13 @@ Artisan::command("strings:import", function () {
             ];
         }
     }
+    if ($this->option('force')) {
+        LocalizedString::truncate();
+        $this->warn('Deleted all existing translations.');
+    }
+
     LocalizedString::insertOrIgnore($rows);
+    $this->info('Imported ' . count($rows) . ' translations.');
 });
 
 Artisan::command("strings:export", function () {
