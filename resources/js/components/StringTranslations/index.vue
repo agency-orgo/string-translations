@@ -8,6 +8,9 @@
             <Badge v-if="version" pill :text="`${version}`" />
           </template>
           <template #actions>
+                <Button iconOnly @click="router.reload()" v-tooltip="'Refresh'">
+                    <IconRefresh />
+                </Button>
                 <Dropdown>
                     <template #trigger>
                         <Button icon="setting-cog-gear" />
@@ -172,6 +175,7 @@ import {
 import TranslateAllModal from './TranslateAllModal.vue';
 import CopyValuesModal from './CopyValuesModal.vue';
 import ConfigurationModal from './ConfigurationModal.vue';
+import IconRefresh from '../icons/IconRefresh.vue';
 
 const props = defineProps({
     translations: { type: Array, required: true },
