@@ -29,7 +29,7 @@
         <template #footer>
             <div class="flex items-center justify-end space-x-3 pt-3 pb-1">
                 <ModalClose>
-                    <Button text="Cancel" variant="ghost" />
+                    <Button text="Close" variant="ghost" />
                 </ModalClose>
                 <Button
                     text="Copy"
@@ -44,13 +44,14 @@
 
 <script setup>
 import { ref, computed, watch, getCurrentInstance } from 'vue';
-import { router } from '@statamic/cms/inertia';
 import { Button, Select, Switch, Modal, ModalClose, Field } from '@statamic/cms/ui';
 
 const props = defineProps({
     sites: { type: Array, required: true },
     copyUrl: { type: String, required: true },
 });
+
+const emit = defineEmits(['changed']);
 
 const { $axios } = getCurrentInstance().appContext.config.globalProperties;
 
@@ -82,8 +83,7 @@ async function copy() {
         });
 
         Statamic.$toast.success(data.message);
-        isOpen.value = false;
-        router.reload();
+        emit('changed');
     } catch (e) {
         const message = e.response?.data?.error || 'Copy failed. Please try again.';
         Statamic.$toast.error(message);

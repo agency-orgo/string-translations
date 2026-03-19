@@ -127,12 +127,14 @@
             v-model:open="showTranslateModal"
             :sites="sites"
             :translateUrl="translateUrl"
+            @changed="pendingReload = true"
         />
 
         <CopyValuesModal
             v-model:open="showCopyModal"
             :sites="sites"
             :copyUrl="copyUrl"
+            @changed="pendingReload = true"
         />
 
         <ConfigurationModal
@@ -221,6 +223,7 @@ const showTranslateModal = ref(false);
 const showCopyModal = ref(false);
 const showConfigModal = ref(false);
 const hasDeeplKeyLocal = ref(props.hasDeeplKey);
+const pendingReload = ref(false);
 
 const statusFilterOptions = [
     { label: 'All', value: 'all' },
@@ -253,6 +256,13 @@ const saveButtonText = computed(() => {
 watch(() => props.activeLang, () => {
     Object.keys(editedValues).forEach(k => delete editedValues[k]);
     keysToDelete.value = new Set();
+});
+
+watch([showCopyModal, showTranslateModal], ([copy, translate]) => {
+    if (!copy && !translate && pendingReload.value) {
+        pendingReload.value = false;
+        router.reload();
+    }
 });
 
 const activeTab = computed({
