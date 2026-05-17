@@ -2,6 +2,8 @@
 
 namespace AgencyOrgo\StringTranslations\Services;
 
+use AgencyOrgo\StringTranslations\Events\TranslationsDeleted;
+use AgencyOrgo\StringTranslations\Events\TranslationsSaved;
 use AgencyOrgo\StringTranslations\Models\LocalizedString;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\File;
@@ -85,10 +87,13 @@ class TranslationService
      */
     public static function saveToDatabase(string $language, array $translations, array $keysToDelete = []): void
     {
-        DB::transaction(function () use ($language, $translations, $keysToDelete) {
+        $deletedKeys = [];
+        $savedKeys = [];
+
+        DB::transaction(function () use ($language, &$translations, $keysToDelete, &$deletedKeys, &$savedKeys) {
             // 1. Handle cross-locale deletions first
             if (!empty($keysToDelete)) {
-                self::deleteKeysFromAllLocales($keysToDelete);
+                $deletedKeys = self::deleteKeysFromAllLocales($keysToDelete);
             }
 
             // 1b. Defensive: ensure translations do not include keys slated for deletion
@@ -100,35 +105,53 @@ class TranslationService
             }
 
             // 2. Bulk upsert translations for current language
-            self::bulkUpsertTranslations($language, $translations);
+            $savedKeys = self::bulkUpsertTranslations($language, $translations);
         });
+
+        // Fire events outside the transaction so listeners that touch the cache
+        // (or other persistence) don't run inside the DB lock.
+        if (!empty($deletedKeys)) {
+            TranslationsDeleted::dispatch($deletedKeys);
+        }
+        if (!empty($savedKeys)) {
+            TranslationsSaved::dispatch($language, $savedKeys);
+        }
     }
 
     /**
      * Delete specific keys from all locales. Uses permissive filtering
      * so keys that don't pass strict validation can still be removed.
+     *
+     * @return array<int, string>  The keys that were actually targeted.
      */
-    private static function deleteKeysFromAllLocales(array $keys): void
+    private static function deleteKeysFromAllLocales(array $keys): array
     {
         $keys = array_filter(array_map('trim', $keys), fn (string $key) => $key !== '' && strlen($key) <= 255);
 
         if (empty($keys)) {
-            return;
+            return [];
         }
 
         LocalizedString::whereIn('key', $keys)->delete();
+
+        return array_values($keys);
     }
 
     /**
      * Perform bulk upsert of translations for optimal performance.
      * Only clears auto_translated for keys whose value actually changed.
+     *
+     * @return array<int, string>  Keys whose stored value changed. Unchanged
+     *                             keys are still upserted (timestamps move)
+     *                             but excluded here so listeners that bust
+     *                             caches don't run for pure no-ops.
      */
-    private static function bulkUpsertTranslations(string $language, array $translations): void
+    private static function bulkUpsertTranslations(string $language, array $translations): array
     {
         $translations = array_filter($translations, fn ($key) => self::isValidKey($key), ARRAY_FILTER_USE_KEY);
 
         if (empty($translations)) {
-            return;
+            return [];
         }
 
         // Fetch current values to detect which keys actually changed
@@ -157,6 +180,8 @@ class TranslationService
         if (! empty($unchanged)) {
             self::bulkUpsertPreserveFlag($language, $unchanged);
         }
+
+        return array_keys($changed);
     }
 
     /**
@@ -164,7 +189,15 @@ class TranslationService
      */
     public static function bulkUpsertAutoTranslations(string $language, array $translations): void
     {
+        $translations = array_filter($translations, fn ($key) => self::isValidKey($key), ARRAY_FILTER_USE_KEY);
+
+        if (empty($translations)) {
+            return;
+        }
+
         self::bulkUpsert($language, $translations, autoTranslated: true);
+
+        TranslationsSaved::dispatch($language, array_keys($translations));
     }
 
     /**

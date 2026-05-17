@@ -2,6 +2,7 @@
 
 namespace AgencyOrgo\StringTranslations\Controllers;
 
+use AgencyOrgo\StringTranslations\Events\TranslationsSaved;
 use AgencyOrgo\StringTranslations\Models\LocalizedString;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -51,6 +52,10 @@ class ApiController
         }
 
         $created = LocalizedString::insertOrIgnore($rows);
+
+        if ($created > 0) {
+            TranslationsSaved::dispatch(null, $validated['keys']);
+        }
 
         return response()->json([
             'created' => $created,

@@ -2,6 +2,7 @@
 
 namespace AgencyOrgo\StringTranslations\Controllers;
 
+use AgencyOrgo\StringTranslations\Events\TranslationsSaved;
 use AgencyOrgo\StringTranslations\Models\LocalizedString;
 use AgencyOrgo\StringTranslations\Services\DeepLService;
 use AgencyOrgo\StringTranslations\Services\SettingsService;
@@ -343,7 +344,11 @@ class TranslationController
             'updated_at' => $now,
         ])->all();
 
-        LocalizedString::insertOrIgnore($rows);
+        $inserted = LocalizedString::insertOrIgnore($rows);
+
+        if ($inserted > 0) {
+            TranslationsSaved::dispatch($site, $allKeys->all());
+        }
     }
 
     /**

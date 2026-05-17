@@ -2,6 +2,7 @@
 
 namespace AgencyOrgo\StringTranslations\GraphQL\Mutations;
 
+use AgencyOrgo\StringTranslations\Events\TranslationsSaved;
 use AgencyOrgo\StringTranslations\GraphQL\Types\CreateStringTranslationsResultType;
 use AgencyOrgo\StringTranslations\Models\LocalizedString;
 use GraphQL\Type\Definition\Type;
@@ -49,6 +50,10 @@ class CreateStringTranslationsMutation extends Mutation
         }
 
         $created = LocalizedString::insertOrIgnore($rows);
+
+        if ($created > 0) {
+            TranslationsSaved::dispatch(null, $keys);
+        }
 
         return ['created' => $created];
     }

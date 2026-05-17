@@ -1,5 +1,7 @@
 <?php
 
+use AgencyOrgo\StringTranslations\Events\TranslationsDeleted;
+use AgencyOrgo\StringTranslations\Events\TranslationsSaved;
 use AgencyOrgo\StringTranslations\Models\LocalizedString;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\File;
@@ -39,11 +41,28 @@ Artisan::command("strings:import {--force : Delete all existing translations bef
         }
     }
     if ($this->option('force')) {
+        $deletedKeys = LocalizedString::select('key')->distinct()->pluck('key')->all();
         LocalizedString::truncate();
         $this->warn('Deleted all existing translations.');
+
+        if (!empty($deletedKeys)) {
+            TranslationsDeleted::dispatch($deletedKeys);
+        }
     }
 
-    LocalizedString::insertOrIgnore($rows);
+    $inserted = LocalizedString::insertOrIgnore($rows);
+
+    if ($inserted > 0) {
+        // Group by locale to fire one event per language (matching the
+        // signature of other write paths). `$translations` already groups
+        // rows by locale via its key.
+        foreach (array_keys($translations) as $lang) {
+            $keys = array_keys($translations[$lang] ?? []);
+            if (!empty($keys)) {
+                TranslationsSaved::dispatch($lang, $keys);
+            }
+        }
+    }
 
     $this->info('Imported ' . count($rows) . ' translations.');
 });

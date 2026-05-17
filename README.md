@@ -118,6 +118,30 @@ Response:
 
 The `created` count reflects total rows inserted (keys * sites). Duplicate keys are ignored.
 
+## Events
+
+The addon dispatches Statamic-style content events for every write so other parts of the system can react. Both extend `Statamic\Events\Event`.
+
+| Event | When |
+| --- | --- |
+| `AgencyOrgo\StringTranslations\Events\TranslationsSaved` | Any insert or value change. Carries `$lang` (the locale, or `null` for cross-locale operations like `createStringTranslations`) and `$keys` (the affected keys). |
+| `AgencyOrgo\StringTranslations\Events\TranslationsDeleted` | Cross-locale key removal. Carries `$keys`. |
+
+### GraphQL response cache
+
+Statamic's GraphQL response cache (`config/statamic/graphql.php` → `cache.expiry`, default 60min) is automatically invalidated whenever a translation event fires — the addon registers a listener in its service provider that calls `Statamic\Contracts\GraphQL\ResponseCache::handleInvalidationEvent()`. Frontends consuming `string_translations(lang: …)` over GraphQL will see saves on the next request without any manual `php artisan cache:clear`. The listener is skipped when GraphQL is disabled or when `statamic.graphql.cache` is `false`.
+
+### Listening to events
+
+```php
+use AgencyOrgo\StringTranslations\Events\TranslationsSaved;
+use Illuminate\Support\Facades\Event;
+
+Event::listen(TranslationsSaved::class, function (TranslationsSaved $event) {
+    // $event->lang, $event->keys
+});
+```
+
 ## Requirements
 
 - Statamic 6.0+

@@ -4,11 +4,15 @@ namespace AgencyOrgo\StringTranslations;
 
 use AgencyOrgo\StringTranslations\Controllers\ApiController;
 use AgencyOrgo\StringTranslations\Controllers\TranslationController;
+use AgencyOrgo\StringTranslations\Events\TranslationsDeleted;
+use AgencyOrgo\StringTranslations\Events\TranslationsSaved;
 use AgencyOrgo\StringTranslations\GraphQL\Mutations\CreateStringTranslationsMutation;
 use AgencyOrgo\StringTranslations\GraphQL\Queries\StringTranslationsQuery;
 use AgencyOrgo\StringTranslations\GraphQL\Types\CreateStringTranslationsResultType;
 use AgencyOrgo\StringTranslations\GraphQL\Types\StringTranslationsType;
+use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Route;
+use Statamic\Contracts\GraphQL\ResponseCache;
 use Statamic\Facades\GraphQL;
 use Statamic\Facades\Utility;
 use Statamic\Http\Middleware\CP\RequireElevatedSession;
@@ -53,6 +57,18 @@ class ServiceProvider extends AddonServiceProvider
             $mutations = config('statamic.graphql.mutations', []);
             $mutations[] = CreateStringTranslationsMutation::class;
             config(['statamic.graphql.mutations' => $mutations]);
+
+            // Bust Statamic's GraphQL response cache whenever a translation
+            // changes. Stock Statamic content events (EntrySaved etc.) are
+            // already wired into Statamic\GraphQL\Subscriber — our events
+            // are not, so bridge them here. Without this, the GraphQL cache
+            // (default expiry: 60min) keeps serving stale translations.
+            if (config('statamic.graphql.cache') !== false) {
+                Event::listen(
+                    [TranslationsSaved::class, TranslationsDeleted::class],
+                    fn ($event) => app(ResponseCache::class)->handleInvalidationEvent($event),
+                );
+            }
         }
 
         Utility::extend(function () {
