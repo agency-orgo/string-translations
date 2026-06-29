@@ -11,3 +11,6 @@ resources/dist/hot
 .cursor
 audit.*
 .idea
+
+# OS
+.DS_Store
