@@ -2,6 +2,7 @@
 
 namespace AgencyOrgo\StringTranslations\Events;
 
+use Statamic\Contracts\Git\ProvidesCommitMessage;
 use Statamic\Events\Event;
 
 /**
@@ -13,12 +14,17 @@ use Statamic\Events\Event;
  * ResponseCache invalidation contract so frontends pick up the removal on
  * their next request.
  */
-class TranslationsDeleted extends Event
+class TranslationsDeleted extends Event implements ProvidesCommitMessage
 {
     /**
      * @param  array<int, string>  $keys  Keys removed from every locale.
      */
     public function __construct(public array $keys = [])
     {
+    }
+
+    public function commitMessage()
+    {
+        return 'Translations deleted';
     }
 }

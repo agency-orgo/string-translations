@@ -17,6 +17,7 @@ use AgencyOrgo\StringTranslations\Support\YamlTranslationStore;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Route;
 use Statamic\Contracts\GraphQL\ResponseCache;
+use Statamic\Facades\Git;
 use Statamic\Facades\GraphQL;
 use Statamic\Facades\Utility;
 use Statamic\Http\Middleware\CP\RequireElevatedSession;
@@ -49,6 +50,7 @@ class ServiceProvider extends AddonServiceProvider
     public function bootAddon()
     {
         $this->loadMigrationsFrom(__DIR__ . '/../migrations');
+        $this->bootGitSync();
 
         if ($this->app->runningInConsole()) {
             $this->loadRoutesFrom(__DIR__ . '/../routes/console.php');
@@ -105,5 +107,18 @@ class ServiceProvider extends AddonServiceProvider
 
             Utility::register($utility);
         });
+    }
+
+    private function bootGitSync(): void
+    {
+        if (config('string-translations.storage.driver') !== 'yaml') {
+            return;
+        }
+
+        $path = config('string-translations.storage.path', resource_path('translations'));
+        config(['statamic.git.paths' => array_merge(config('statamic.git.paths', []), [$path])]);
+
+        Git::listen(TranslationsSaved::class);
+        Git::listen(TranslationsDeleted::class);
     }
 }

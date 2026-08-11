@@ -4,7 +4,7 @@ A Statamic addon for managing string translations with database or flat-file sto
 
 ## Features
 
-- Database or flat YAML file storage
+- Database or flat YAML file storage, with YAML files committed by Statamic's Git automation
 - Multi-language support with fallback hierarchy
 - Bulk operations for performance
 - Search and filter functionality
@@ -69,6 +69,10 @@ resources/translations/
 No database or migration is needed. Commit `resources/translations/` and the files travel with your deploys and show up in pull requests like any other content.
 
 The DeepL API key is not written into that directory. Under the yaml driver it goes, encrypted, into `storage/string-translations/settings.yaml`, which Laravel's default `storage/` gitignore already covers.
+
+### Git sync
+
+With the yaml driver, the storage path is added to `statamic.git.paths` and both events are handed to Statamic's git subscriber. If you already run Statamic's Git automation (`STATAMIC_GIT_ENABLED=true`, `STATAMIC_GIT_AUTOMATIC=true`), translation saves and deletes queue commits exactly like content does, honouring your `statamic.git` queue, push and `ignored_events` settings. There is nothing else to set up.
 
 ### Switching drivers
 
@@ -158,7 +162,7 @@ The `created` count reflects total rows inserted (keys * sites). Duplicate keys 
 
 ## Events
 
-The addon dispatches Statamic-style content events for every write so other parts of the system can react. Both extend `Statamic\Events\Event`.
+The addon dispatches Statamic-style content events for every write so other parts of the system can react. Both extend `Statamic\Events\Event` and implement `Statamic\Contracts\Git\ProvidesCommitMessage`, which supplies the commit message under the yaml driver.
 
 | Event | When |
 | --- | --- |

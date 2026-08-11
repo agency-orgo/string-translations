@@ -2,6 +2,7 @@
 
 namespace AgencyOrgo\StringTranslations\Events;
 
+use Statamic\Contracts\Git\ProvidesCommitMessage;
 use Statamic\Events\Event;
 
 /**
@@ -12,7 +13,7 @@ use Statamic\Events\Event;
  * that calls Statamic's GraphQL ResponseCache invalidation contract, so
  * frontends sharing this cache pick up changes on the next request.
  */
-class TranslationsSaved extends Event
+class TranslationsSaved extends Event implements ProvidesCommitMessage
 {
     /**
      * @param  string|null  $lang   The locale that was written, or null for
@@ -25,5 +26,12 @@ class TranslationsSaved extends Event
         public ?string $lang = null,
         public array $keys = [],
     ) {
+    }
+
+    public function commitMessage()
+    {
+        return $this->lang
+            ? "Translations saved: {$this->lang}"
+            : 'Translations saved';
     }
 }
