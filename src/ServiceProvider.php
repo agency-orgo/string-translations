@@ -118,6 +118,11 @@ class ServiceProvider extends AddonServiceProvider
         $path = config('string-translations.storage.path', resource_path('translations'));
         config(['statamic.git.paths' => array_merge(config('statamic.git.paths', []), [$path])]);
 
+        // Resolving the Git facade throws when the integration is disabled.
+        if (! config('statamic.git.enabled')) {
+            return;
+        }
+
         Git::listen(TranslationsSaved::class);
         Git::listen(TranslationsDeleted::class);
     }
