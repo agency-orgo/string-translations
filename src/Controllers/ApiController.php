@@ -2,14 +2,18 @@
 
 namespace AgencyOrgo\StringTranslations\Controllers;
 
+use AgencyOrgo\StringTranslations\Contracts\TranslationRepository;
 use AgencyOrgo\StringTranslations\Events\TranslationsSaved;
-use AgencyOrgo\StringTranslations\Models\LocalizedString;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Statamic\Facades\Site;
 
 class ApiController
 {
+    public function __construct(
+        private readonly TranslationRepository $repo,
+    ) {}
+
     public function index(Request $request): JsonResponse
     {
         $request->validate([
@@ -18,9 +22,10 @@ class ApiController
 
         $lang = $request->get('lang');
 
-        $strings = LocalizedString::where('lang', $lang)
-            ->orderBy('key')
-            ->pluck('value', 'key');
+        $strings = [];
+        foreach ($this->repo->forLang($lang) as $key => $info) {
+            $strings[$key] = $info['value'];
+        }
 
         return response()->json([
             'lang' => $lang,
@@ -35,23 +40,17 @@ class ApiController
             'keys.*' => 'string|max:255',
         ]);
 
-        $sites = Site::all()->keys()->all();
-        $now = now();
+        $prefix = config('string-translations.untranslated_prefix');
 
-        $rows = [];
+        $pairs = [];
         foreach ($validated['keys'] as $key) {
-            foreach ($sites as $handle) {
-                $rows[] = [
-                    'key' => $key,
-                    'lang' => $handle,
-                    'value' => config('string-translations.untranslated_prefix') . $key,
-                    'created_at' => $now,
-                    'updated_at' => $now,
-                ];
-            }
+            $pairs[$key] = $prefix . $key;
         }
 
-        $created = LocalizedString::insertOrIgnore($rows);
+        $created = 0;
+        foreach (Site::all()->keys()->all() as $handle) {
+            $created += $this->repo->insertMissing($handle, $pairs);
+        }
 
         if ($created > 0) {
             TranslationsSaved::dispatch(null, $validated['keys']);

@@ -2,8 +2,8 @@
 
 namespace AgencyOrgo\StringTranslations\Controllers;
 
+use AgencyOrgo\StringTranslations\Contracts\TranslationRepository;
 use AgencyOrgo\StringTranslations\Events\TranslationsSaved;
-use AgencyOrgo\StringTranslations\Models\LocalizedString;
 use AgencyOrgo\StringTranslations\Services\DeepLService;
 use AgencyOrgo\StringTranslations\Services\SettingsService;
 use AgencyOrgo\StringTranslations\Services\TranslationService;
@@ -12,29 +12,21 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Contracts\Cache\LockTimeoutException;
 use Illuminate\Support\Facades\Cache;
-use Illuminate\Support\Facades\Schema;
 use Statamic\Facades\Site;
 
 class TranslationController
 {
     public function __construct(
         private readonly SettingsService $settings,
+        private readonly TranslationRepository $repo,
     ) {}
-
-    protected function getPath($locale): string
-    {
-        return base_path() . "/lang/{$locale}.json";
-    }
 
     /**
      * Return props for the Inertia page component.
      */
     public function index(Request $request): array
     {
-        $tableName = config('string-translations.database.table', 'localized_strings');
-        $settingsTable = config('string-translations.database.settings_table', 'string_translation_settings');
-
-        if (!Schema::hasTable($tableName) || !Schema::hasTable($settingsTable)) {
+        if (! $this->repo->isAvailable()) {
             return [
                 'translations' => [],
                 'activeLang' => $request->get('lang', 'en'),
@@ -57,14 +49,15 @@ class TranslationController
         $this->propagateKeysIfEmpty($site);
         $fallbackSites = $this->getFallbackSites($site);
         $data = $this->getTranslationsWithFallback($site, $fallbackSites);
+        $prefix = config('string-translations.untranslated_prefix');
 
         return [
-            'translations' => $data->map(fn ($entry) => [
-                'key' => $entry->key,
-                'value' => $entry->value,
-                'untranslated' => str_starts_with($entry->value, config('string-translations.untranslated_prefix')),
-                'auto_translated' => (bool) $entry->auto_translated,
-            ])->values()->all(),
+            'translations' => array_map(fn ($entry) => [
+                'key' => $entry['key'],
+                'value' => $entry['value'],
+                'untranslated' => str_starts_with($entry['value'], $prefix),
+                'auto_translated' => $entry['auto'],
+            ], $data),
             'activeLang' => $site,
             'sites' => $this->getSites(),
             'saveUrl' => cp_route('utilities.string-translations'),
@@ -183,30 +176,26 @@ class TranslationController
             return Cache::lock('string-translations:translate-all', 30)->block(0, function () use ($apiKey, $fromLang, $toLang, $fromLocale, $toLocale, $overwrite) {
                 $prefix = config('string-translations.untranslated_prefix');
 
+                $targetTranslations = $this->repo->forLang($toLang);
                 if ($overwrite) {
-                    $targetKeys = LocalizedString::where('lang', $toLang)
-                        ->pluck('key')
-                        ->all();
+                    $targetKeys = array_keys($targetTranslations);
                 } else {
-                    $targetKeys = LocalizedString::where('lang', $toLang)
-                        ->where('value', 'like', $prefix . '%')
-                        ->pluck('key')
-                        ->all();
+                    $targetKeys = array_keys(array_filter(
+                        $targetTranslations,
+                        fn ($info) => str_starts_with($info['value'], $prefix)
+                    ));
                 }
 
                 if (empty($targetKeys)) {
                     return response()->json(['translated' => 0, 'message' => 'No keys found to translate.']);
                 }
 
-                $sourceValues = LocalizedString::where('lang', $fromLang)
-                    ->whereIn('key', $targetKeys)
-                    ->pluck('value', 'key')
-                    ->all();
+                $sourceValues = $this->repo->forLang($fromLang);
 
                 $toTranslate = [];
                 foreach ($targetKeys as $key) {
-                    if (isset($sourceValues[$key]) && ! str_starts_with($sourceValues[$key], $prefix)) {
-                        $toTranslate[$key] = $sourceValues[$key];
+                    if (isset($sourceValues[$key]) && ! str_starts_with($sourceValues[$key]['value'], $prefix)) {
+                        $toTranslate[$key] = $sourceValues[$key]['value'];
                     }
                 }
 
@@ -259,10 +248,12 @@ class TranslationController
         try {
             return Cache::lock('string-translations:copy-values', 30)->block(0, function () use ($fromLang, $toLang, $overwrite, $prefix) {
                 // Get all source values, excluding untranslated ones
-                $sourceValues = LocalizedString::where('lang', $fromLang)
-                    ->where('value', 'not like', $prefix . '%')
-                    ->pluck('value', 'key')
-                    ->all();
+                $sourceValues = [];
+                foreach ($this->repo->forLang($fromLang) as $key => $info) {
+                    if (! str_starts_with($info['value'], $prefix)) {
+                        $sourceValues[$key] = $info['value'];
+                    }
+                }
 
                 if (empty($sourceValues)) {
                     return response()->json(['copied' => 0, 'message' => 'No source values to copy.']);
@@ -270,10 +261,10 @@ class TranslationController
 
                 if (! $overwrite) {
                     // Only copy to keys that are untranslated in destination
-                    $untranslatedKeys = LocalizedString::where('lang', $toLang)
-                        ->where('value', 'like', $prefix . '%')
-                        ->pluck('key')
-                        ->all();
+                    $untranslatedKeys = array_keys(array_filter(
+                        $this->repo->forLang($toLang),
+                        fn ($info) => str_starts_with($info['value'], $prefix)
+                    ));
 
                     $sourceValues = array_intersect_key($sourceValues, array_flip($untranslatedKeys));
                 }
@@ -323,31 +314,26 @@ class TranslationController
      */
     private function propagateKeysIfEmpty(string $site): void
     {
-        if (LocalizedString::where('lang', $site)->exists()) {
+        if ($this->repo->langHasKeys($site)) {
             return;
         }
 
-        $allKeys = LocalizedString::select('key')
-            ->distinct()
-            ->pluck('key');
+        $allKeys = $this->repo->allKeys();
 
-        if ($allKeys->isEmpty()) {
+        if (empty($allKeys)) {
             return;
         }
 
-        $now = now();
-        $rows = $allKeys->map(fn ($key) => [
-            'key' => $key,
-            'lang' => $site,
-            'value' => config('string-translations.untranslated_prefix') . $key,
-            'created_at' => $now,
-            'updated_at' => $now,
-        ])->all();
+        $prefix = config('string-translations.untranslated_prefix');
+        $pairs = [];
+        foreach ($allKeys as $key) {
+            $pairs[$key] = $prefix . $key;
+        }
 
-        $inserted = LocalizedString::insertOrIgnore($rows);
+        $inserted = $this->repo->insertMissing($site, $pairs);
 
         if ($inserted > 0) {
-            TranslationsSaved::dispatch($site, $allKeys->all());
+            TranslationsSaved::dispatch($site, $allKeys);
         }
     }
 
@@ -368,49 +354,27 @@ class TranslationController
 
     /**
      * Get translations with fallback logic
+     *
+     * @return array<int, array{key: string, value: string, auto: bool}>
      */
-    private function getTranslationsWithFallback(string $primarySite, array $fallbackSites): \Illuminate\Support\Collection
+    private function getTranslationsWithFallback(string $primarySite, array $fallbackSites): array
     {
-        // Get all possible sites to query (primary + fallbacks)
-        $allSites = array_merge([$primarySite], $fallbackSites);
+        $result = [];
 
-        // Get all translations for these sites
-        $allTranslations = LocalizedString::whereIn("lang", $allSites)
-            ->orderBy("key")
-            ->get()
-            ->groupBy('key');
+        foreach ($this->repo->forLang($primarySite) as $key => $info) {
+            $result[$key] = ['key' => $key, 'value' => $info['value'], 'auto' => $info['auto']];
+        }
 
-        $result = collect();
-
-        foreach ($allTranslations as $key => $translations) {
-            // Find the best translation following the fallback hierarchy
-            $bestTranslation = null;
-
-            // First try the primary site
-            $primaryTranslation = $translations->where('lang', $primarySite)->first();
-            if ($primaryTranslation) {
-                $bestTranslation = $primaryTranslation;
-            } else {
-                // Try fallback sites in order
-                foreach ($fallbackSites as $fallbackSite) {
-                    $fallbackTranslation = $translations->where('lang', $fallbackSite)->first();
-                    if ($fallbackTranslation) {
-                        // Create a new record with the primary site but fallback value
-                        $bestTranslation = new LocalizedString([
-                            'key' => $key,
-                            'lang' => $primarySite,
-                            'value' => $fallbackTranslation->value
-                        ]);
-                        break;
-                    }
+        foreach ($fallbackSites as $fallbackSite) {
+            foreach ($this->repo->forLang($fallbackSite) as $key => $info) {
+                if (! isset($result[$key])) {
+                    $result[$key] = ['key' => $key, 'value' => $info['value'], 'auto' => false];
                 }
-            }
-
-            if ($bestTranslation) {
-                $result->push($bestTranslation);
             }
         }
 
-        return $result->sortBy('key');
+        ksort($result);
+
+        return array_values($result);
     }
 }

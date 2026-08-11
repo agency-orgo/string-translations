@@ -1,6 +1,11 @@
 <?php
 
 return [
+    'storage' => [
+        'driver' => env('STRING_TRANSLATIONS_DRIVER', 'database'),
+        'path' => env('STRING_TRANSLATIONS_PATH', resource_path('translations')),
+    ],
+
     'database' => [
         'connection' => env('STRING_TRANSLATIONS_DB_CONNECTION', 'default'),
         'table' => env('STRING_TRANSLATIONS_TABLE', 'localized_strings'),

@@ -2,8 +2,8 @@
 
 namespace AgencyOrgo\StringTranslations\GraphQL\Queries;
 
+use AgencyOrgo\StringTranslations\Contracts\TranslationRepository;
 use AgencyOrgo\StringTranslations\GraphQL\Types\StringTranslationsType;
-use AgencyOrgo\StringTranslations\Models\LocalizedString;
 use GraphQL\Type\Definition\Type;
 use Statamic\Facades\GraphQL;
 use Statamic\GraphQL\Queries\Query;
@@ -32,10 +32,10 @@ class StringTranslationsQuery extends Query
     {
         $lang = $args['lang'];
 
-        $strings = LocalizedString::where('lang', $lang)
-            ->orderBy('key')
-            ->pluck('value', 'key')
-            ->all();
+        $strings = [];
+        foreach (app(TranslationRepository::class)->forLang($lang) as $key => $info) {
+            $strings[$key] = $info['value'];
+        }
 
         return [
             'lang' => $lang,

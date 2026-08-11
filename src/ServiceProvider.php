@@ -2,6 +2,7 @@
 
 namespace AgencyOrgo\StringTranslations;
 
+use AgencyOrgo\StringTranslations\Contracts\TranslationRepository;
 use AgencyOrgo\StringTranslations\Controllers\ApiController;
 use AgencyOrgo\StringTranslations\Controllers\TranslationController;
 use AgencyOrgo\StringTranslations\Events\TranslationsDeleted;
@@ -10,6 +11,9 @@ use AgencyOrgo\StringTranslations\GraphQL\Mutations\CreateStringTranslationsMuta
 use AgencyOrgo\StringTranslations\GraphQL\Queries\StringTranslationsQuery;
 use AgencyOrgo\StringTranslations\GraphQL\Types\CreateStringTranslationsResultType;
 use AgencyOrgo\StringTranslations\GraphQL\Types\StringTranslationsType;
+use AgencyOrgo\StringTranslations\Repositories\DatabaseTranslationRepository;
+use AgencyOrgo\StringTranslations\Repositories\YamlTranslationRepository;
+use AgencyOrgo\StringTranslations\Support\YamlTranslationStore;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Route;
 use Statamic\Contracts\GraphQL\ResponseCache;
@@ -30,11 +34,22 @@ class ServiceProvider extends AddonServiceProvider
         parent::register();
 
         $this->mergeConfigFrom(__DIR__.'/../config/string-translations.php', 'string-translations');
+
+        $this->app->singleton(YamlTranslationStore::class, fn () => new YamlTranslationStore(
+            config('string-translations.storage.path', resource_path('translations'))
+        ));
+
+        $this->app->singleton(TranslationRepository::class, function ($app) {
+            return config('string-translations.storage.driver') === 'yaml'
+                ? new YamlTranslationRepository($app->make(YamlTranslationStore::class))
+                : new DatabaseTranslationRepository();
+        });
     }
 
     public function bootAddon()
     {
         $this->loadMigrationsFrom(__DIR__ . '/../migrations');
+
         if ($this->app->runningInConsole()) {
             $this->loadRoutesFrom(__DIR__ . '/../routes/console.php');
             $this->publishes([

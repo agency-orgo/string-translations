@@ -1,10 +1,10 @@
 # String Translations
 
-A Statamic addon for managing string translations with database storage and fallback support.
+A Statamic addon for managing string translations with database or flat-file storage and fallback support.
 
 ## Features
 
-- Database-driven string translations
+- Database or flat YAML file storage
 - Multi-language support with fallback hierarchy
 - Bulk operations for performance
 - Search and filter functionality
@@ -33,6 +33,10 @@ php artisan vendor:publish --tag=string-translations-config
 
 ```php
 return [
+    'storage' => [
+        'driver' => env('STRING_TRANSLATIONS_DRIVER', 'database'), // 'database' | 'yaml'
+        'path' => env('STRING_TRANSLATIONS_PATH', resource_path('translations')),
+    ],
     'database' => [
         'connection' => env('STRING_TRANSLATIONS_DB_CONNECTION', 'default'),
         'table' => env('STRING_TRANSLATIONS_TABLE', 'localized_strings'),
@@ -42,6 +46,40 @@ return [
     ],
 ];
 ```
+
+## Storage drivers
+
+`storage.driver` picks the one store the addon reads and writes. There is no mirroring between them.
+
+### `database` (default)
+
+Translations live in the `localized_strings` table. Run `php artisan migrate` after installing. Nothing changes if you leave `storage.driver` alone.
+
+### `yaml`
+
+Set `STRING_TRANSLATIONS_DRIVER=yaml`. Translations become flat YAML files, one per locale, under `storage.path` (default `resources/translations`):
+
+```
+resources/translations/
+  en.yaml        # key: value (sorted)
+  et.yaml
+  .meta.yaml     # which values came from DeepL
+```
+
+No database or migration is needed. Commit `resources/translations/` and the files travel with your deploys and show up in pull requests like any other content.
+
+The DeepL API key is not written into that directory. Under the yaml driver it goes, encrypted, into `storage/string-translations/settings.yaml`, which Laravel's default `storage/` gitignore already covers.
+
+### Switching drivers
+
+Two commands move existing data between the stores. They are one-time migrations, not a sync:
+
+```bash
+php artisan strings:export   # database -> yaml files at storage.path
+php artisan strings:import   # yaml files (and legacy lang/*.json) -> database
+```
+
+`strings:import --force` truncates the table before importing.
 
 ## REST API
 

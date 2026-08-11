@@ -3,30 +3,40 @@
 use AgencyOrgo\StringTranslations\Events\TranslationsDeleted;
 use AgencyOrgo\StringTranslations\Events\TranslationsSaved;
 use AgencyOrgo\StringTranslations\Models\LocalizedString;
+use AgencyOrgo\StringTranslations\Support\YamlTranslationStore;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\File;
 
 Artisan::command("strings:import {--force : Delete all existing translations before importing}", function () {
-    $langPath = base_path('lang');
+    $store = app(YamlTranslationStore::class);
+
     $translations = [];
+    $auto = [];
 
-    if (File::isDirectory($langPath)) {
-        // Get all JSON files in the lang directory
-        $files = File::glob($langPath.'/*.json');
-
-        foreach ($files as $file) {
-            $locale = pathinfo($file, PATHINFO_FILENAME); // e.g., 'en' from 'en.json'
-            $content = File::get($file);
-            $translations[$locale] = json_decode($content, true);
-        }
+    foreach ($store->locales() as $lang) {
+        $translations[$lang] = $store->read($lang);
+    }
+    foreach ($store->meta() as $lang => $keys) {
+        $auto[$lang] = $keys;
     }
 
+    // Older versions exported to lang/*.json, keep reading those.
+    $langPath = base_path('lang');
+    if (File::isDirectory($langPath)) {
+        foreach (File::glob($langPath.'/*.json') as $file) {
+            $lang = pathinfo($file, PATHINFO_FILENAME);
+            $translations[$lang] = array_merge(
+                $translations[$lang] ?? [],
+                json_decode(File::get($file), true) ?: []
+            );
+        }
 
-    // Load auto_translated metadata if it exists
-    $metaFile = $langPath . '/.auto_translated.json';
-    $autoTranslatedMeta = [];
-    if (File::exists($metaFile)) {
-        $autoTranslatedMeta = json_decode(File::get($metaFile), true) ?? [];
+        $metaFile = $langPath.'/.auto_translated.json';
+        if (File::exists($metaFile)) {
+            foreach (json_decode(File::get($metaFile), true) ?? [] as $lang => $keys) {
+                $auto[$lang] = array_merge($auto[$lang] ?? [], $keys);
+            }
+        }
     }
 
     $rows = [];
@@ -36,7 +46,7 @@ Artisan::command("strings:import {--force : Delete all existing translations bef
                 'key' => $k,
                 'lang' => $lang,
                 'value' => $v,
-                'auto_translated' => $autoTranslatedMeta[$lang][$k] ?? false,
+                'auto_translated' => !empty($auto[$lang][$k]),
             ];
         }
     }
@@ -53,18 +63,15 @@ Artisan::command("strings:import {--force : Delete all existing translations bef
     $inserted = LocalizedString::insertOrIgnore($rows);
 
     if ($inserted > 0) {
-        // Group by locale to fire one event per language (matching the
-        // signature of other write paths). `$translations` already groups
-        // rows by locale via its key.
-        foreach (array_keys($translations) as $lang) {
-            $keys = array_keys($translations[$lang] ?? []);
+        foreach ($translations as $lang => $pairs) {
+            $keys = array_keys($pairs);
             if (!empty($keys)) {
                 TranslationsSaved::dispatch($lang, $keys);
             }
         }
     }
 
-    $this->info('Imported ' . count($rows) . ' translations.');
+    $this->info('Imported ' . count($rows) . ' translations into the database.');
 });
 
 Artisan::command("strings:export", function () {
@@ -75,35 +82,22 @@ Artisan::command("strings:export", function () {
         return;
     }
 
-    $grouped = $strings->groupBy('lang');
-    $langPath = base_path('lang');
+    $store = app(YamlTranslationStore::class);
+    $meta = [];
 
-    if (!File::isDirectory($langPath)) {
-        File::makeDirectory($langPath, 0755, true);
-    }
+    foreach ($strings->groupBy('lang') as $locale => $rows) {
+        $values = $rows->sortBy('key')->pluck('value', 'key')->toArray();
+        $store->write($locale, $values);
 
-    $autoTranslatedMeta = [];
-
-    foreach ($grouped as $locale => $translations) {
-        $sorted = $translations->sortBy('key');
-
-        $data = $sorted->pluck('value', 'key')->toArray();
-
-        $autoKeys = $sorted->filter(fn ($t) => (bool) $t->auto_translated)->pluck('key')->all();
+        $autoKeys = $rows->filter(fn ($t) => (bool) $t->auto_translated)->pluck('key')->all();
         if (!empty($autoKeys)) {
-            $autoTranslatedMeta[$locale] = array_fill_keys($autoKeys, true);
+            $meta[$locale] = array_fill_keys($autoKeys, true);
         }
 
-        $file = $langPath . "/{$locale}.json";
-        File::put($file, json_encode($data, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE));
-        $this->info("Exported " . count($data) . " strings to {$locale}.json");
+        $this->info("Exported " . count($values) . " strings to {$locale}.yaml");
     }
 
-    $metaFile = $langPath . '/.auto_translated.json';
-    if (!empty($autoTranslatedMeta)) {
-        File::put($metaFile, json_encode($autoTranslatedMeta, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE));
-        $this->info("Exported auto_translated metadata to .auto_translated.json");
-    } elseif (File::exists($metaFile)) {
-        File::delete($metaFile);
-    }
+    $store->writeMeta($meta);
+
+    $this->info("Exported to {$store->path()}");
 });

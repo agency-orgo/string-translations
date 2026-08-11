@@ -68,7 +68,7 @@ class EventDispatchTest extends TestCase
     {
         Event::fake([TranslationsSaved::class]);
 
-        $controller = new ApiController();
+        $controller = app(ApiController::class);
         $request = Request::create('/strings', 'POST', ['keys' => ['nav.home']]);
         $request->setLaravelSession(app('session.store'));
         $controller->store($request);

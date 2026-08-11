@@ -2,9 +2,9 @@
 
 namespace AgencyOrgo\StringTranslations\GraphQL\Mutations;
 
+use AgencyOrgo\StringTranslations\Contracts\TranslationRepository;
 use AgencyOrgo\StringTranslations\Events\TranslationsSaved;
 use AgencyOrgo\StringTranslations\GraphQL\Types\CreateStringTranslationsResultType;
-use AgencyOrgo\StringTranslations\Models\LocalizedString;
 use GraphQL\Type\Definition\Type;
 use Rebing\GraphQL\Support\Mutation;
 use Statamic\Facades\GraphQL;
@@ -33,23 +33,18 @@ class CreateStringTranslationsMutation extends Mutation
     public function resolve($root, $args)
     {
         $keys = $args['keys'];
-        $sites = Site::all()->keys()->all();
-        $now = now();
+        $prefix = config('string-translations.untranslated_prefix');
+        $repo = app(TranslationRepository::class);
 
-        $rows = [];
+        $pairs = [];
         foreach ($keys as $key) {
-            foreach ($sites as $handle) {
-                $rows[] = [
-                    'key' => $key,
-                    'lang' => $handle,
-                    'value' => config('string-translations.untranslated_prefix') . $key,
-                    'created_at' => $now,
-                    'updated_at' => $now,
-                ];
-            }
+            $pairs[$key] = $prefix . $key;
         }
 
-        $created = LocalizedString::insertOrIgnore($rows);
+        $created = 0;
+        foreach (Site::all()->keys()->all() as $handle) {
+            $created += $repo->insertMissing($handle, $pairs);
+        }
 
         if ($created > 0) {
             TranslationsSaved::dispatch(null, $keys);

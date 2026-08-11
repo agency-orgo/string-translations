@@ -2,109 +2,40 @@
 
 namespace AgencyOrgo\StringTranslations\Services;
 
+use AgencyOrgo\StringTranslations\Contracts\TranslationRepository;
 use AgencyOrgo\StringTranslations\Events\TranslationsDeleted;
 use AgencyOrgo\StringTranslations\Events\TranslationsSaved;
-use AgencyOrgo\StringTranslations\Models\LocalizedString;
-use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\File;
-use Statamic\Facades\Site;
 
 class TranslationService
 {
-    public static function all($locale)
+    private static function repo(): TranslationRepository
     {
-        $path = pathinfo(self::getPath($locale), PATHINFO_DIRNAME);
-        if (!File::exists($path)) {
-            File::makeDirectory($path);
-
-        }
-        if (!File::exists(self::getPath($locale))) {
-            self::save($locale, []);
-        }
-
-        return json_decode(
-            File::get(self::getPath($locale)),
-            true,
-            2,
-            JSON_THROW_ON_ERROR
-        );
-    }
-
-    public static function save($locale, $strings): void
-    {
-        $path = pathinfo(self::getPath($locale), PATHINFO_DIRNAME);
-        if (!File::exists($path)) {
-            File::makeDirectory($path);
-        }
-
-        File::put(
-            self::getPath($locale),
-            json_encode($strings, JSON_THROW_ON_ERROR | JSON_PRETTY_PRINT)
-        );
-    }
-
-    public static function get($locale, $key)
-    {
-        $strings = self::all($locale);
-        if (isset($strings[$key])) {
-            return $strings[$key];
-        }
-
-        $strings = self::all(config('app.fallback_locale'));
-
-        return $strings[$key];
-    }
-
-    public static function set($locale, $key, $value)
-    {
-        $strings = self::all($locale);
-
-        if (!isset($strings[$key]) && $key && $value) {
-            $strings[$key] = $value;
-            self::save($locale, $strings);
-        }
-    }
-
-    public static function add($key, $value)
-    {
-        foreach (Site::all() as $handle => $site) {
-            self::set($handle, $key, $value);
-        }
-    }
-
-    private static function getPath($locale): string
-    {
-        return base_path() . "/lang/{$locale}.json";
+        return app(TranslationRepository::class);
     }
 
     /**
-     * Save translations to database with bulk operations for performance.
-     * 
-     * @param string $language
-     * @param array $translations
-     * @param array $keysToDelete
-     * @return void
+     * Despite the name, this writes to whichever store storage.driver selects.
      */
     public static function saveToDatabase(string $language, array $translations, array $keysToDelete = []): void
     {
         $deletedKeys = [];
         $savedKeys = [];
 
-        DB::transaction(function () use ($language, &$translations, $keysToDelete, &$deletedKeys, &$savedKeys) {
-            // 1. Handle cross-locale deletions first
+        self::repo()->transaction(function () use ($language, $translations, $keysToDelete, &$deletedKeys, &$savedKeys) {
             if (!empty($keysToDelete)) {
-                $deletedKeys = self::deleteKeysFromAllLocales($keysToDelete);
-            }
+                $keysToDelete = array_filter(
+                    array_map('trim', $keysToDelete),
+                    fn (string $key) => $key !== '' && strlen($key) <= 255
+                );
 
-            // 1b. Defensive: ensure translations do not include keys slated for deletion
-            if (!empty($keysToDelete) && !empty($translations)) {
-                $trimmedKeysToDelete = array_map('trim', $keysToDelete);
-                foreach ($trimmedKeysToDelete as $deleteKey) {
+                $deletedKeys = self::repo()->deleteKeys(array_values($keysToDelete));
+
+                // Defensive: ensure translations do not include keys slated for deletion
+                foreach ($keysToDelete as $deleteKey) {
                     unset($translations[$deleteKey]);
                 }
             }
 
-            // 2. Bulk upsert translations for current language
             $savedKeys = self::bulkUpsertTranslations($language, $translations);
         });
 
@@ -119,32 +50,10 @@ class TranslationService
     }
 
     /**
-     * Delete specific keys from all locales. Uses permissive filtering
-     * so keys that don't pass strict validation can still be removed.
+     * Unchanged keys are skipped entirely, so a no-op save doesn't rewrite files
+     * or queue an empty git commit.
      *
-     * @return array<int, string>  The keys that were actually targeted.
-     */
-    private static function deleteKeysFromAllLocales(array $keys): array
-    {
-        $keys = array_filter(array_map('trim', $keys), fn (string $key) => $key !== '' && strlen($key) <= 255);
-
-        if (empty($keys)) {
-            return [];
-        }
-
-        LocalizedString::whereIn('key', $keys)->delete();
-
-        return array_values($keys);
-    }
-
-    /**
-     * Perform bulk upsert of translations for optimal performance.
-     * Only clears auto_translated for keys whose value actually changed.
-     *
-     * @return array<int, string>  Keys whose stored value changed. Unchanged
-     *                             keys are still upserted (timestamps move)
-     *                             but excluded here so listeners that bust
-     *                             caches don't run for pure no-ops.
+     * @return array<int, string>  Keys whose stored value changed.
      */
     private static function bulkUpsertTranslations(string $language, array $translations): array
     {
@@ -154,39 +63,22 @@ class TranslationService
             return [];
         }
 
-        // Fetch current values to detect which keys actually changed
-        $existing = LocalizedString::where('lang', $language)
-            ->whereIn('key', array_keys($translations))
-            ->pluck('value', 'key')
-            ->all();
+        $existing = self::repo()->forLang($language);
 
         $changed = [];
-        $unchanged = [];
-
         foreach ($translations as $key => $value) {
-            if (! isset($existing[$key]) || $existing[$key] !== $value) {
+            if (! isset($existing[$key]) || $existing[$key]['value'] !== $value) {
                 $changed[$key] = $value;
-            } else {
-                $unchanged[$key] = $value;
             }
         }
 
-        // Changed keys: force auto_translated = false
         if (! empty($changed)) {
-            self::bulkUpsert($language, $changed, autoTranslated: false);
-        }
-
-        // Unchanged keys: upsert value only, preserve auto_translated
-        if (! empty($unchanged)) {
-            self::bulkUpsertPreserveFlag($language, $unchanged);
+            self::repo()->upsert($language, $changed, autoTranslated: false);
         }
 
         return array_keys($changed);
     }
 
-    /**
-     * Bulk upsert translations marked as auto-translated (from DeepL).
-     */
     public static function bulkUpsertAutoTranslations(string $language, array $translations): void
     {
         $translations = array_filter($translations, fn ($key) => self::isValidKey($key), ARRAY_FILTER_USE_KEY);
@@ -195,14 +87,11 @@ class TranslationService
             return;
         }
 
-        self::bulkUpsert($language, $translations, autoTranslated: true);
+        self::repo()->upsert($language, $translations, autoTranslated: true);
 
         TranslationsSaved::dispatch($language, array_keys($translations));
     }
 
-    /**
-     * Upsert translations without touching the auto_translated flag.
-     */
     public static function bulkUpsertPreserveFlag(string $language, array $translations): void
     {
         $translations = array_filter($translations, fn ($key) => self::isValidKey($key), ARRAY_FILTER_USE_KEY);
@@ -211,75 +100,9 @@ class TranslationService
             return;
         }
 
-        $now = now();
-        $upsertData = [];
+        self::repo()->upsert($language, $translations, autoTranslated: null);
 
-        foreach ($translations as $key => $value) {
-            $upsertData[] = [
-                'key' => $key,
-                'lang' => $language,
-                'value' => $value,
-                'created_at' => $now,
-                'updated_at' => $now,
-            ];
-        }
-
-        try {
-            LocalizedString::upsert(
-                $upsertData,
-                ['key', 'lang'],
-                ['value', 'updated_at']
-            );
-        } catch (\Exception $e) {
-            report($e);
-
-            foreach ($translations as $key => $value) {
-                LocalizedString::updateOrCreate(
-                    ['key' => $key, 'lang' => $language],
-                    ['value' => $value, 'updated_at' => $now]
-                );
-            }
-        }
-    }
-
-    private static function bulkUpsert(string $language, array $translations, bool $autoTranslated): void
-    {
-        $translations = array_filter($translations, fn ($key) => self::isValidKey($key), ARRAY_FILTER_USE_KEY);
-
-        if (empty($translations)) {
-            return;
-        }
-
-        $now = now();
-        $upsertData = [];
-
-        foreach ($translations as $key => $value) {
-            $upsertData[] = [
-                'key' => $key,
-                'lang' => $language,
-                'value' => $value,
-                'auto_translated' => $autoTranslated,
-                'created_at' => $now,
-                'updated_at' => $now,
-            ];
-        }
-
-        try {
-            LocalizedString::upsert(
-                $upsertData,
-                ['key', 'lang'],
-                ['value', 'auto_translated', 'updated_at']
-            );
-        } catch (\Exception $e) {
-            report($e);
-
-            foreach ($translations as $key => $value) {
-                LocalizedString::updateOrCreate(
-                    ['key' => $key, 'lang' => $language],
-                    ['value' => $value, 'auto_translated' => $autoTranslated, 'updated_at' => $now]
-                );
-            }
-        }
+        TranslationsSaved::dispatch($language, array_keys($translations));
     }
 
     private static function isValidKey(string $key): bool
