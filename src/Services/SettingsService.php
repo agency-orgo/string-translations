@@ -102,6 +102,12 @@ class SettingsService
             File::makeDirectory($dir, 0755, true);
         }
 
+        // Laravel only ignores storage/*.key, so this directory needs its own
+        // .gitignore to keep the encrypted key out of the repository.
+        if (! File::exists($dir.'/.gitignore')) {
+            File::put($dir.'/.gitignore', "*\n!.gitignore\n");
+        }
+
         File::put($this->filePath(), Yaml::dump($all, 2, 2));
     }
 }

@@ -68,7 +68,7 @@ resources/translations/
 
 No database or migration is needed. Commit `resources/translations/` and the files travel with your deploys and show up in pull requests like any other content.
 
-The DeepL API key is not written into that directory. Under the yaml driver it goes, encrypted, into `storage/string-translations/settings.yaml`, which Laravel's default `storage/` gitignore already covers.
+The DeepL API key is not written into that directory. Under the yaml driver it goes, encrypted, into `storage/string-translations/settings.yaml`. Laravel's root gitignore only covers `storage/*.key`, so the addon writes a `.gitignore` alongside the file to keep the key out of your repository.
 
 ### Git sync
 
