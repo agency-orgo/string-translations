@@ -17,4 +17,12 @@ return [
     'api' => [
         'enabled' => env('STRING_TRANSLATIONS_API_ENABLED', false),
     ],
+
+    'graphql' => [
+        // Shared secret for the deleteStringTranslations mutation, sent in the
+        // X-String-Translations-Token header. Separate from Statamic's
+        // STATAMIC_GRAPHQL_AUTH_TOKEN, which locks the whole endpoint, reads
+        // included. Deletion is refused while this is unset.
+        'delete_token' => env('STRING_TRANSLATIONS_GRAPHQL_DELETE_TOKEN'),
+    ],
 ];
