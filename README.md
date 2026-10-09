@@ -44,6 +44,9 @@ return [
     'api' => [
         'enabled' => env('STRING_TRANSLATIONS_API_ENABLED', false),
     ],
+    'graphql' => [
+        'delete_token' => env('STRING_TRANSLATIONS_GRAPHQL_DELETE_TOKEN'),
+    ],
 ];
 ```
 
@@ -159,6 +162,37 @@ Response:
 ```
 
 The `created` count reflects total rows inserted (keys * sites). Duplicate keys are ignored.
+
+### Delete translation keys
+
+Removes keys from every locale. The mutation only runs when `STRING_TRANSLATIONS_GRAPHQL_DELETE_TOKEN` is set and the request sends the same value in the `X-String-Translations-Token` header. Without it, the response is an `Unauthorized` error and nothing is deleted.
+
+```dotenv
+STRING_TRANSLATIONS_GRAPHQL_DELETE_TOKEN=a-long-random-string
+```
+
+```bash
+curl -X POST "https://your-site.com/graphql" \
+  -H "Content-Type: application/json" \
+  -H "X-String-Translations-Token: a-long-random-string" \
+  -d '{"query": "mutation { deleteStringTranslations(keys: [\"nav.contact\", \"footer.copyright\"]) { deleted } }"}'
+```
+
+Response:
+
+```json
+{
+  "data": {
+    "deleteStringTranslations": {
+      "deleted": ["nav.contact", "footer.copyright"]
+    }
+  }
+}
+```
+
+`deleted` lists the keys that existed and were removed. Unknown keys are left out, so an empty list means nothing matched.
+
+This token is separate from Statamic's `STATAMIC_GRAPHQL_AUTH_TOKEN`, which protects the whole endpoint, read queries included. Keeping them apart lets the frontend read `string_translations` without credentials. Only send the delete token from server-side code, never from the browser.
 
 ## Events
 

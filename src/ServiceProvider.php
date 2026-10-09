@@ -8,8 +8,10 @@ use AgencyOrgo\StringTranslations\Controllers\TranslationController;
 use AgencyOrgo\StringTranslations\Events\TranslationsDeleted;
 use AgencyOrgo\StringTranslations\Events\TranslationsSaved;
 use AgencyOrgo\StringTranslations\GraphQL\Mutations\CreateStringTranslationsMutation;
+use AgencyOrgo\StringTranslations\GraphQL\Mutations\DeleteStringTranslationsMutation;
 use AgencyOrgo\StringTranslations\GraphQL\Queries\StringTranslationsQuery;
 use AgencyOrgo\StringTranslations\GraphQL\Types\CreateStringTranslationsResultType;
+use AgencyOrgo\StringTranslations\GraphQL\Types\DeleteStringTranslationsResultType;
 use AgencyOrgo\StringTranslations\GraphQL\Types\StringTranslationsType;
 use AgencyOrgo\StringTranslations\Repositories\DatabaseTranslationRepository;
 use AgencyOrgo\StringTranslations\Repositories\YamlTranslationRepository;
@@ -69,10 +71,12 @@ class ServiceProvider extends AddonServiceProvider
         if (config('statamic.graphql.enabled')) {
             GraphQL::addType(StringTranslationsType::class);
             GraphQL::addType(CreateStringTranslationsResultType::class);
+            GraphQL::addType(DeleteStringTranslationsResultType::class);
             GraphQL::addQuery(StringTranslationsQuery::class);
 
             $mutations = config('statamic.graphql.mutations', []);
             $mutations[] = CreateStringTranslationsMutation::class;
+            $mutations[] = DeleteStringTranslationsMutation::class;
             config(['statamic.graphql.mutations' => $mutations]);
 
             // Bust Statamic's GraphQL response cache whenever a translation
