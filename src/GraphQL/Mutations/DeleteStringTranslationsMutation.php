@@ -5,6 +5,7 @@ namespace AgencyOrgo\StringTranslations\GraphQL\Mutations;
 use AgencyOrgo\StringTranslations\Contracts\TranslationRepository;
 use AgencyOrgo\StringTranslations\Events\TranslationsDeleted;
 use AgencyOrgo\StringTranslations\GraphQL\Types\DeleteStringTranslationsResultType;
+use AgencyOrgo\StringTranslations\Services\TranslationService;
 use Closure;
 use GraphQL\Type\Definition\ResolveInfo;
 use GraphQL\Type\Definition\Type;
@@ -34,8 +35,7 @@ class DeleteStringTranslationsMutation extends Mutation
     }
 
     /**
-     * Uses the addon's own token rather than Statamic's endpoint-wide one, so
-     * sites can keep read queries public while deletion stays server-side.
+     * Own token instead of Statamic's endpoint-wide one, so reads can stay public.
      */
     public function authorize($root, array $args, $ctx, ?ResolveInfo $resolveInfo = null, ?Closure $getSelectFields = null): bool
     {
@@ -50,15 +50,10 @@ class DeleteStringTranslationsMutation extends Mutation
         $repo = app(TranslationRepository::class);
         $deleted = [];
 
-        // deleteKeys() echoes back whatever it is given, so narrow to keys that
-        // exist first; the response and the event then report real removals.
         $repo->transaction(function () use ($repo, $args, &$deleted) {
-            $deleted = array_values(array_intersect(array_unique($args['keys']), $repo->allKeys()));
-            $repo->deleteKeys($deleted);
+            $deleted = $repo->deleteKeys(TranslationService::normalizeKeys($args['keys']));
         });
 
-        // Skipping the event when nothing matched avoids an empty git commit
-        // under the yaml driver.
         if (! empty($deleted)) {
             TranslationsDeleted::dispatch($deleted);
         }

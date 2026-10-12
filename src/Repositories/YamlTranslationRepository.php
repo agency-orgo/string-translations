@@ -102,13 +102,15 @@ class YamlTranslationRepository implements TranslationRepository
         return $this->store->lock(function () use ($keys) {
             $flip = array_flip($keys);
             $meta = $this->store->meta();
+            $removed = [];
 
             foreach ($this->store->locales() as $lang) {
                 $values = $this->store->read($lang);
-                $remaining = array_diff_key($values, $flip);
+                $doomed = array_intersect_key($values, $flip);
 
-                if (count($remaining) !== count($values)) {
-                    $this->store->write($lang, $remaining);
+                if (! empty($doomed)) {
+                    $this->store->write($lang, array_diff_key($values, $flip));
+                    $removed += $doomed;
                 }
 
                 if (isset($meta[$lang])) {
@@ -116,9 +118,16 @@ class YamlTranslationRepository implements TranslationRepository
                 }
             }
 
+            if (empty($removed)) {
+                return [];
+            }
+
             $this->store->writeMeta($meta);
 
-            return array_values($keys);
+            $removed = array_map('strval', array_keys($removed));
+            sort($removed);
+
+            return $removed;
         });
     }
 
