@@ -44,7 +44,7 @@ interface TranslationRepository
      * Remove the given keys from every locale.
      *
      * @param  array<int, string>  $keys
-     * @return array<int, string>  The keys that were actually targeted.
+     * @return array<int, string>  The keys that existed and were removed, sorted.
      */
     public function deleteKeys(array $keys): array;
 

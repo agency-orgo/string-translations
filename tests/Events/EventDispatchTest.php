@@ -53,6 +53,15 @@ class EventDispatchTest extends TestCase
         });
     }
 
+    public function test_save_to_database_does_not_dispatch_deleted_event_for_missing_keys()
+    {
+        Event::fake([TranslationsDeleted::class]);
+
+        TranslationService::saveToDatabase('en', [], ['missing']);
+
+        Event::assertNotDispatched(TranslationsDeleted::class);
+    }
+
     public function test_bulk_upsert_auto_translations_dispatches_saved_event()
     {
         Event::fake([TranslationsSaved::class]);

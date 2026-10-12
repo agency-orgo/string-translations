@@ -92,9 +92,13 @@ class DatabaseTranslationRepository implements TranslationRepository
             return [];
         }
 
-        LocalizedString::whereIn('key', $keys)->delete();
+        $found = LocalizedString::whereIn('key', $keys)->distinct()->orderBy('key')->pluck('key')->all();
 
-        return array_values($keys);
+        if (! empty($found)) {
+            LocalizedString::whereIn('key', $found)->delete();
+        }
+
+        return $found;
     }
 
     public function isAvailable(): bool

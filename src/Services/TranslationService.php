@@ -23,12 +23,9 @@ class TranslationService
 
         self::repo()->transaction(function () use ($language, $translations, $keysToDelete, &$deletedKeys, &$savedKeys) {
             if (!empty($keysToDelete)) {
-                $keysToDelete = array_filter(
-                    array_map('trim', $keysToDelete),
-                    fn (string $key) => $key !== '' && strlen($key) <= 255
-                );
+                $keysToDelete = self::normalizeKeys($keysToDelete);
 
-                $deletedKeys = self::repo()->deleteKeys(array_values($keysToDelete));
+                $deletedKeys = self::repo()->deleteKeys($keysToDelete);
 
                 // Defensive: ensure translations do not include keys slated for deletion
                 foreach ($keysToDelete as $deleteKey) {
@@ -47,6 +44,18 @@ class TranslationService
         if (!empty($savedKeys)) {
             TranslationsSaved::dispatch($language, $savedKeys);
         }
+    }
+
+    /**
+     * @param  array<int, string>  $keys
+     * @return array<int, string>
+     */
+    public static function normalizeKeys(array $keys): array
+    {
+        return array_values(array_unique(array_filter(
+            array_map('trim', $keys),
+            fn (string $key) => $key !== '' && strlen($key) <= 255
+        )));
     }
 
     /**

@@ -111,6 +111,17 @@ class DeleteStringTranslationsMutationTest extends TestCase
         $this->assertDatabaseHas('localized_strings', ['key' => 'kept']);
     }
 
+    public function test_it_trims_keys_like_the_cp_save_does()
+    {
+        LocalizedString::create(['key' => 'nav.contact', 'lang' => 'en', 'value' => 'Contact']);
+
+        $response = $this->deleteKeys([' nav.contact ']);
+
+        $response->assertOk();
+        $response->assertJsonPath('data.deleteStringTranslations.deleted', ['nav.contact']);
+        $this->assertDatabaseMissing('localized_strings', ['key' => 'nav.contact']);
+    }
+
     public function test_keys_argument_is_required()
     {
         $response = $this->postJson('/graphql', [
