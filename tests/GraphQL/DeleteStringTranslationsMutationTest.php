@@ -111,6 +111,20 @@ class DeleteStringTranslationsMutationTest extends TestCase
         $this->assertDatabaseHas('localized_strings', ['key' => 'kept']);
     }
 
+    public function test_it_locks_out_after_repeated_wrong_tokens()
+    {
+        LocalizedString::create(['key' => 'kept', 'lang' => 'en', 'value' => 'Kept']);
+
+        for ($i = 0; $i < 10; $i++) {
+            $this->deleteKeys(['kept'], token: 'wrong-token');
+        }
+
+        $response = $this->deleteKeys(['kept']);
+
+        $response->assertJsonPath('errors.0.extensions.category', 'authorization');
+        $this->assertDatabaseHas('localized_strings', ['key' => 'kept']);
+    }
+
     public function test_it_trims_keys_like_the_cp_save_does()
     {
         LocalizedString::create(['key' => 'nav.contact', 'lang' => 'en', 'value' => 'Contact']);

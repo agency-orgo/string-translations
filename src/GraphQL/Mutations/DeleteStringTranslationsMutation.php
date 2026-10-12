@@ -9,12 +9,15 @@ use AgencyOrgo\StringTranslations\Services\TranslationService;
 use Closure;
 use GraphQL\Type\Definition\ResolveInfo;
 use GraphQL\Type\Definition\Type;
+use Illuminate\Support\Facades\RateLimiter;
 use Rebing\GraphQL\Support\Mutation;
 use Statamic\Facades\GraphQL;
 
 class DeleteStringTranslationsMutation extends Mutation
 {
     public const TOKEN_HEADER = 'X-String-Translations-Token';
+
+    private const MAX_FAILED_ATTEMPTS = 10;
 
     protected $attributes = [
         'name' => 'deleteStringTranslations',
@@ -40,9 +43,19 @@ class DeleteStringTranslationsMutation extends Mutation
     public function authorize($root, array $args, $ctx, ?ResolveInfo $resolveInfo = null, ?Closure $getSelectFields = null): bool
     {
         $token = (string) config('string-translations.graphql.delete_token');
+        $limiterKey = 'string-translations-delete:'.request()->ip();
 
-        return $token !== ''
-            && hash_equals($token, (string) request()->header(self::TOKEN_HEADER));
+        if ($token === '' || RateLimiter::tooManyAttempts($limiterKey, self::MAX_FAILED_ATTEMPTS)) {
+            return false;
+        }
+
+        if (hash_equals($token, (string) request()->header(self::TOKEN_HEADER))) {
+            return true;
+        }
+
+        RateLimiter::hit($limiterKey);
+
+        return false;
     }
 
     public function resolve($root, $args)
